@@ -298,6 +298,28 @@ export default function App() {
               </h2>
               <ExportButton videoId={videoId} />
             </div>
+
+              {cues.length === 0 && (
+              <div
+                style={{
+                  background: "#111",
+                  border: "1px solid #2a2a2a",
+                  borderRadius: 8,
+                  padding: "2rem",
+                  textAlign: "center",
+                  marginBottom: "1rem",
+                }}
+              >
+                <p style={{ color: "#555", margin: "0 0 0.5rem", fontSize: "1.5rem" }}>🔇</p>
+                <p style={{ color: "#666", margin: "0 0 0.5rem", fontSize: "0.95rem" }}>
+                  No speech detected in this video.
+                </p>
+                <p style={{ color: "#444", margin: "0 0 1rem", fontSize: "0.8rem" }}>
+                  You can add subtitles manually or re-transcribe if the video should have speech.
+                </p>
+              </div>
+            )}
+
             <SubtitleEditor
               videoId={videoId}
               initialCues={cues}

@@ -7,6 +7,7 @@ interface Props {
   initialCues: CueResponse[];
   currentTimeMs: number;
   onSeek: (ms: number) => void;
+  hidden?: boolean;
 }
 
 export function SubtitleEditor({
@@ -14,6 +15,7 @@ export function SubtitleEditor({
   initialCues,
   currentTimeMs,
   onSeek,
+  hidden = false,
 }: Props) {
   const [cues, setCues] = useState<CueResponse[]>(initialCues);
 
@@ -91,7 +93,7 @@ export function SubtitleEditor({
   }
 
   return (
-    <div>
+    <div style={hidden ? { display: "none" } : undefined}>
       <div
         style={{
           display: "grid",
