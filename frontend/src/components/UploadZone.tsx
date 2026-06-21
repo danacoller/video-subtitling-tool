@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { VideoResponse, uploadVideo } from "../api/client";
 
@@ -9,7 +9,6 @@ interface Props {
 export function UploadZone({ onUploaded }: Props) {
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const onDrop = useCallback(
     async (files: File[]) => {
@@ -41,7 +40,12 @@ export function UploadZone({ onUploaded }: Props) {
       {/* Browse button row */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
         <button
-          onClick={open}
+          onClick={() => {
+            // #region agent log
+            fetch('http://127.0.0.1:7501/ingest/65dcc4ee-58be-4a17-b658-52d45a02b11d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'53ef6a'},body:JSON.stringify({sessionId:'53ef6a',location:'UploadZone.tsx:44',message:'Upload button clicked (post-fix)',data:{openType:typeof open,isDisabled:progress!==null},timestamp:Date.now(),runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
+            open();
+            // #endregion
+          }}
           disabled={progress !== null}
           style={{
             background: "#6c63ff",
@@ -74,7 +78,7 @@ export function UploadZone({ onUploaded }: Props) {
           transition: "border-color 0.15s, background 0.15s",
         }}
       >
-        <input {...getInputProps()} ref={inputRef} />
+        <input {...getInputProps()} />
         {isDragActive ? (
           <p style={{ margin: 0, color: "#aaa" }}>Drop the video here…</p>
         ) : (

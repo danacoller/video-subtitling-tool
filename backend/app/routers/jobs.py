@@ -36,6 +36,10 @@ async def transcribe_video(
 async def get_job(
     video_id: uuid.UUID,
     service: TranscriptionService = Depends(_get_service),
+    session: AsyncSession = Depends(get_db),
 ) -> JobResponse:
     job = await service.get_job(video_id)
-    return JobResponse.model_validate(job)
+    response = JobResponse.model_validate(job)
+    if job.status == "queued":
+        response.queue_position = await JobRepository(session).queue_position(job.id)
+    return response

@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Protocol
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import TranscriptionJob
@@ -100,6 +100,19 @@ class JobRepository:
             )
         )
         await self._session.flush()
+
+    async def queue_position(self, job_id: uuid.UUID) -> int | None:
+        """Return how many queued jobs are ahead of this one (1 = next up). None if not queued."""
+        job = await self.get_by_id(job_id)
+        if job is None or job.status != "queued":
+            return None
+        result = await self._session.execute(
+            select(func.count()).where(
+                TranscriptionJob.status == "queued",
+                TranscriptionJob.created_at <= job.created_at,
+            )
+        )
+        return result.scalar_one()
 
     async def reset_orphaned(self) -> None:
         """On worker startup: set processing -> queued for jobs left in-flight."""

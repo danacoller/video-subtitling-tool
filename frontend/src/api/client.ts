@@ -23,6 +23,7 @@ export interface JobResponse {
   finished_at: string | null;
   created_at: string;
   updated_at: string;
+  queue_position: number | null;
 }
 
 export interface CueResponse {

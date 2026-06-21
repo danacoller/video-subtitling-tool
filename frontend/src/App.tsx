@@ -283,11 +283,16 @@ export default function App() {
             </div>
           )}
 
-          {/* Queued with elapsed */}
+          {/* Queued */}
           {job?.status === "queued" && (
-            <div>
-              <StatusBadge color="#6c63ff" label="Queued — waiting for worker…" />
-            </div>
+            <StatusBadge
+              color="#6c63ff"
+              label={
+                job.queue_position && job.queue_position > 1
+                  ? `Queued — position ${job.queue_position} (${job.queue_position - 1} job${job.queue_position > 2 ? "s" : ""} ahead)`
+                  : "Queued — next up, waiting for worker…"
+              }
+            />
           )}
 
           {/* Stats panel — shown once subtitles are ready */}

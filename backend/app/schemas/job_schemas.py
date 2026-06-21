@@ -14,5 +14,6 @@ class JobResponse(BaseModel):
     finished_at: datetime | None
     created_at: datetime
     updated_at: datetime
+    queue_position: int | None = None  # position in queue (1 = next up), None when not queued
 
     model_config = {"from_attributes": True}
