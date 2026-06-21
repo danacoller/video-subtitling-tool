@@ -1,9 +1,9 @@
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { uploadVideo } from "../api/client";
+import { VideoResponse, uploadVideo } from "../api/client";
 
 interface Props {
-  onUploaded: (videoId: string) => void;
+  onUploaded: (video: VideoResponse) => void;
 }
 
 export function UploadZone({ onUploaded }: Props) {
@@ -18,7 +18,7 @@ export function UploadZone({ onUploaded }: Props) {
       setProgress(0);
       try {
         const video = await uploadVideo(file, setProgress);
-        onUploaded(video.id);
+        onUploaded(video);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Upload failed");
         setProgress(null);

@@ -167,8 +167,6 @@ export default function App() {
   }
 
   // ─── Editor screen ────────────────────────────────────────────────────────
-  const isProcessing = job?.status === "queued" || job?.status === "processing";
-
   return (
     <div style={rootStyle}>
       <Header>
