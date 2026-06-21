@@ -290,7 +290,10 @@ export default function App() {
             </div>
           )}
 
-          {/* Completed debug panel */}
+          {/* Stats panel — shown once subtitles are ready */}
+          {jobDone && !job && (
+            <DebugPanel job={null} cueCount={cues.length} videoDuration={videoDuration} />
+          )}
           {job?.status === "completed" && jobDone && (
             <DebugPanel job={job} cueCount={cues.length} videoDuration={videoDuration} />
           )}
@@ -534,12 +537,12 @@ function DebugPanel({
   cueCount,
   videoDuration,
 }: {
-  job: JobResponse;
+  job: JobResponse | null;
   cueCount: number;
   videoDuration: number | null;
 }) {
   const transcribeSec =
-    job.started_at && job.finished_at
+    job?.started_at && job?.finished_at
       ? Math.round(
           (new Date(job.finished_at).getTime() - new Date(job.started_at).getTime()) / 1000
         )
@@ -560,36 +563,27 @@ function DebugPanel({
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.5rem" }}>
-        <span style={{ color: "#2d8a4e", fontSize: "0.9rem" }}>✓ Transcription complete</span>
-        <span
-          style={{
-            background: "#1a3a1a",
-            color: "#4caf70",
-            fontSize: "0.7rem",
-            padding: "0.1rem 0.4rem",
-            borderRadius: 4,
-          }}
-        >
-          DEBUG
-        </span>
+        <span style={{ color: "#2d8a4e", fontSize: "0.9rem" }}>✓ Subtitles ready</span>
       </div>
-      {job.started_at && (
+      {videoDuration !== null && (
+        <DebugLine label="Video duration" value={formatDuration(Math.round(videoDuration))} />
+      )}
+      <DebugLine label="Segments" value={`${cueCount} subtitle cues`} />
+      {job?.started_at && (
         <DebugLine label="Started at" value={new Date(job.started_at).toLocaleTimeString()} />
       )}
-      {job.finished_at && (
+      {job?.finished_at && (
         <DebugLine label="Finished at" value={new Date(job.finished_at).toLocaleTimeString()} />
       )}
       {transcribeSec !== null && (
         <DebugLine label="Transcribe time" value={formatDuration(transcribeSec)} highlight />
       )}
-      {videoDuration !== null && (
-        <DebugLine label="Video duration" value={formatDuration(Math.round(videoDuration))} />
-      )}
       {speedRatio !== null && (
         <DebugLine label="Speed" value={`${speedRatio}× faster than real-time`} highlight />
       )}
-      <DebugLine label="Segments" value={`${cueCount} subtitle cues`} />
-      <DebugLine label="Job ID" value={job.id} />
+      {job?.id && (
+        <DebugLine label="Job ID" value={job.id} />
+      )}
     </div>
   );
 }
