@@ -1,3 +1,5 @@
+import json
+import subprocess
 import uuid
 from typing import BinaryIO
 
@@ -6,6 +8,27 @@ from app.config import settings
 from app.errors import InvalidCueError, VideoNotFoundError
 from app.models import Video
 from app.repositories.video_repo import VideoRepositoryProtocol
+
+
+def _probe_duration(path: str) -> float | None:
+    """Return duration in seconds via ffprobe, or None if it cannot be determined."""
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "quiet",
+                "-print_format", "json",
+                "-show_format",
+                path,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        data = json.loads(result.stdout)
+        raw = data.get("format", {}).get("duration")
+        return float(raw) if raw is not None else None
+    except Exception:
+        return None
 
 
 class VideoService:
@@ -43,6 +66,7 @@ class VideoService:
             original_name=filename,
             content_type=content_type,
             size_bytes=size_bytes,
+            duration_seconds=_probe_duration(str(storage_path)),
             storage_path=str(storage_path),
             status="uploaded",
         )

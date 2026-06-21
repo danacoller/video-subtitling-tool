@@ -14,6 +14,7 @@ from app.models import Subtitle
 from app.repositories.job_repo import JobRepository
 from app.repositories.subtitle_repo import SubtitleRepository
 from app.repositories.video_repo import VideoRepository
+from app.services.video_service import _probe_duration
 
 logger = logging.getLogger(__name__)
 _shutdown = False
@@ -93,6 +94,11 @@ async def run_worker(transcriber: Transcriber | None = None) -> None:
 
                 await subtitle_repo.bulk_replace(job.video_id, subtitles)
                 await job_repo.mark_completed(job.id)
+
+                # Back-fill duration if it was missing at upload time
+                if video.duration_seconds is None:
+                    video.duration_seconds = _probe_duration(str(video_path))
+
                 await session.commit()
                 logger.info("Job %s completed with %d segments", job.id, len(segments))
 
