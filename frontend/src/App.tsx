@@ -310,7 +310,7 @@ export default function App() {
           {/* Queued */}
           {job?.status === "queued" && (
             <div>
-              {job.queue_position && job.queue_position > 1 ? (
+              {job.active_job_progress !== null ? (
                 <div
                   style={{
                     background: "#0d0d2e",
@@ -320,19 +320,21 @@ export default function App() {
                   }}
                 >
                   <p style={{ margin: "0 0 0.5rem", color: "#6c63ff", fontSize: "0.9rem" }}>
-                    ⏳ Queued — {job.queue_position - 1} job{job.queue_position > 2 ? "s" : ""} ahead of yours
+                    ⏳ Waiting — another video is transcribing first
+                    {job.queue_position && job.queue_position > 1
+                      ? ` (${job.queue_position - 1} more ahead of yours)`
+                      : ""}
                   </p>
-                  {job.active_job_progress !== null && (
-                    <>
-                      <p style={{ margin: "0 0 0.35rem", color: "#555", fontSize: "0.75rem" }}>
-                        Current transcription: {job.active_job_progress}%
-                      </p>
-                      <ProgressBar value={job.active_job_progress} />
-                    </>
-                  )}
+                  <p style={{ margin: "0 0 0.35rem", color: "#555", fontSize: "0.75rem" }}>
+                    Current transcription: {job.active_job_progress}%
+                  </p>
+                  <ProgressBar value={job.active_job_progress} />
+                  <p style={{ margin: "0.5rem 0 0", color: "#444", fontSize: "0.72rem" }}>
+                    Yours will start automatically when the worker is free.
+                  </p>
                 </div>
               ) : (
-                <StatusBadge color="#6c63ff" label="Queued — next up, starting soon…" />
+                <StatusBadge color="#6c63ff" label="Queued — starting in a moment…" />
               )}
             </div>
           )}
