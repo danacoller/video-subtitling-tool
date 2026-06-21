@@ -61,6 +61,13 @@ async def run_worker(transcriber: Transcriber | None = None) -> None:
 
                 video_path = Path(video.storage_path)
 
+                # Back-fill duration if it was missing at upload time (needed for progress calc)
+                if video.duration_seconds is None:
+                    video.duration_seconds = _probe_duration(str(video_path))
+                    await session.commit()
+
+                duration_sec: float = video.duration_seconds or 0.0
+
                 with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
                     audio_path = Path(tmp.name)
 
@@ -77,30 +84,43 @@ async def run_worker(transcriber: Transcriber | None = None) -> None:
                         .run(quiet=True)
                     )
 
-                    segments = transcriber.transcribe(audio_path)
+                    subtitles: list[Subtitle] = []
+                    last_reported_pct = 0
+
+                    for i, seg in enumerate(transcriber.transcribe(audio_path), start=1):
+                        subtitles.append(
+                            Subtitle(
+                                video_id=job.video_id,
+                                start_ms=round(seg.start_sec * 1000),
+                                end_ms=max(
+                                    round(seg.end_sec * 1000),
+                                    round(seg.start_sec * 1000) + 1,
+                                ),
+                                text=seg.text,
+                                position=i,
+                            )
+                        )
+
+                        # Report progress based on how far through the audio we are
+                        if duration_sec > 0:
+                            pct = min(99, int(seg.end_sec / duration_sec * 100))
+                        else:
+                            pct = 0
+
+                        if pct >= last_reported_pct + 5:
+                            last_reported_pct = pct
+                            async with AsyncSessionLocal() as progress_session:
+                                await JobRepository(progress_session).update_progress(job.id, pct)
+                                await progress_session.commit()
+                            logger.debug("Job %s progress %d%%", job.id, pct)
+
                 finally:
                     audio_path.unlink(missing_ok=True)
 
-                subtitles = [
-                    Subtitle(
-                        video_id=job.video_id,
-                        start_ms=round(seg.start_sec * 1000),
-                        end_ms=max(round(seg.end_sec * 1000), round(seg.start_sec * 1000) + 1),
-                        text=seg.text,
-                        position=i,
-                    )
-                    for i, seg in enumerate(segments, start=1)
-                ]
-
                 await subtitle_repo.bulk_replace(job.video_id, subtitles)
                 await job_repo.mark_completed(job.id)
-
-                # Back-fill duration if it was missing at upload time
-                if video.duration_seconds is None:
-                    video.duration_seconds = _probe_duration(str(video_path))
-
                 await session.commit()
-                logger.info("Job %s completed with %d segments", job.id, len(segments))
+                logger.info("Job %s completed with %d segments", job.id, len(subtitles))
 
             except Exception as exc:
                 logger.exception("Job %s failed: %s", job.id, exc)
