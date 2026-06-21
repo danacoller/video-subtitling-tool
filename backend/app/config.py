@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import field_validator
+from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,22 +12,17 @@ class Settings(BaseSettings):
     )
     STORAGE_DIR: Path = Path("/data/videos")
     MAX_UPLOAD_BYTES: int = 2 * 1024 * 1024 * 1024  # 2 GB
-    ALLOWED_CONTENT_TYPES: set[str] = {
-        "video/mp4",
-        "video/quicktime",
-        "video/x-msvideo",
-        "video/x-matroska",
-        "video/webm",
-    }
+    # Comma-separated string — avoids pydantic-settings trying to JSON-decode a set[str]
+    ALLOWED_CONTENT_TYPES_RAW: str = (
+        "video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm"
+    )
     WHISPER_MODEL: str = "base"
     WORKER_POLL_INTERVAL: int = 3
 
-    @field_validator("ALLOWED_CONTENT_TYPES", mode="before")
-    @classmethod
-    def parse_content_types(cls, v: object) -> object:
-        if isinstance(v, str):
-            return {s.strip() for s in v.split(",") if s.strip()}
-        return v
+    @computed_field  # type: ignore[misc]
+    @property
+    def ALLOWED_CONTENT_TYPES(self) -> set[str]:
+        return {s.strip() for s in self.ALLOWED_CONTENT_TYPES_RAW.split(",") if s.strip()}
 
 
 settings = Settings()
