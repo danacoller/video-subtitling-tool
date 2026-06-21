@@ -100,7 +100,7 @@ export default function App() {
       } catch {
         // keep polling
       }
-    }, 2000);
+    }, 1000);
   }
 
   async function openVideo(video: VideoResponse) {

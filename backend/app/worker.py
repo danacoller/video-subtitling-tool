@@ -3,6 +3,7 @@ import asyncio
 import logging
 import signal
 import tempfile
+import time
 from pathlib import Path
 
 import ffmpeg
@@ -85,7 +86,7 @@ async def run_worker(transcriber: Transcriber | None = None) -> None:
                     )
 
                     subtitles: list[Subtitle] = []
-                    last_reported_pct = 0
+                    last_write_time = time.monotonic()
 
                     for i, seg in enumerate(transcriber.transcribe(audio_path), start=1):
                         subtitles.append(
@@ -101,18 +102,20 @@ async def run_worker(transcriber: Transcriber | None = None) -> None:
                             )
                         )
 
-                        # Report progress based on how far through the audio we are
-                        if duration_sec > 0:
-                            pct = min(99, int(seg.end_sec / duration_sec * 100))
-                        else:
-                            pct = 0
+                        pct = (
+                            min(99, int(seg.end_sec / duration_sec * 100))
+                            if duration_sec > 0
+                            else 0
+                        )
 
-                        if pct >= last_reported_pct + 5:
-                            last_reported_pct = pct
+                        # Write at most once per second so the UI always has fresh data
+                        now = time.monotonic()
+                        if now - last_write_time >= 1.0:
+                            last_write_time = now
                             async with AsyncSessionLocal() as progress_session:
                                 await JobRepository(progress_session).update_progress(job.id, pct)
                                 await progress_session.commit()
-                            logger.debug("Job %s progress %d%%", job.id, pct)
+                            logger.info("Job %s progress %d%%", job.id, pct)
 
                 finally:
                     audio_path.unlink(missing_ok=True)
