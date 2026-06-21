@@ -64,9 +64,9 @@ export default function App() {
         setJob(j);
         if (j.status === "completed") {
           stopPolling();
-          setJobDone(true);
           const loaded = await listCues(vid);
-          setCues(loaded);
+          setCues(loaded);       // set cues before jobDone so editor mounts with data
+          setJobDone(true);
         } else if (j.status === "failed") {
           stopPolling();
           setTranscribeError(j.error_message ?? "Transcription failed");
@@ -85,23 +85,30 @@ export default function App() {
     setTranscribeError(null);
     setJobDone(false);
     setCurrentTimeMs(0);
+    setScreen("editor");
 
-    // Check if there's already a job for this video
+    // Load existing cues first — if any exist, open directly into edit mode
+    const existingCues = await listCues(video.id).catch(() => []);
+    if (existingCues.length > 0) {
+      setCues(existingCues);
+      setJobDone(true);
+    }
+
+    // Then check job status for progress display / polling
     try {
       const j = await getJob(video.id);
       setJob(j);
-      if (j.status === "completed") {
-        setJobDone(true);
+      if (j.status === "completed" && existingCues.length === 0) {
+        // Completed but cues somehow empty — try loading again
         const loaded = await listCues(video.id);
         setCues(loaded);
+        setJobDone(true);
       } else if (j.status === "queued" || j.status === "processing") {
         startPolling(video.id);
       }
     } catch {
-      // No job yet — that's fine
+      // No job yet — that's fine, user can transcribe
     }
-
-    setScreen("editor");
   }
 
   function handleUploaded(video: VideoResponse) {
@@ -190,10 +197,17 @@ export default function App() {
 
         {/* ── Job status panel ── */}
         <div style={{ marginTop: "1.25rem" }}>
-          {/* No job yet */}
-          {!job && !transcribeError && (
+          {/* No job yet and no cues — show generate button */}
+          {!job && !transcribeError && !jobDone && (
             <button onClick={handleTranscribe} style={primaryBtn}>
               Generate captions
+            </button>
+          )}
+
+          {/* Has cues but no active job — offer re-transcription */}
+          {!job && !transcribeError && jobDone && (
+            <button onClick={handleTranscribe} style={{ ...primaryBtn, background: "#333", fontSize: "0.8rem", padding: "0.35rem 0.9rem" }}>
+              Re-transcribe
             </button>
           )}
 

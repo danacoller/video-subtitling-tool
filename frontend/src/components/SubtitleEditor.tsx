@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CueResponse, bulkReplaceCues } from "../api/client";
 import { CueRow } from "./CueRow";
 
@@ -16,6 +16,11 @@ export function SubtitleEditor({
   onSeek,
 }: Props) {
   const [cues, setCues] = useState<CueResponse[]>(initialCues);
+
+  // Sync when parent loads cues asynchronously after mount
+  useEffect(() => {
+    setCues(initialCues);
+  }, [initialCues]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
