@@ -23,6 +23,14 @@ def _get_service(session: AsyncSession = Depends(get_db)) -> VideoService:
     )
 
 
+@router.get("/videos", response_model=list[VideoResponse])
+async def list_videos(
+    service: VideoService = Depends(_get_service),
+) -> list[VideoResponse]:
+    videos = await service.list_all()
+    return [VideoResponse.model_validate(v) for v in videos]
+
+
 @router.post("/videos", response_model=VideoResponse, status_code=201)
 async def upload_video(
     file: UploadFile,

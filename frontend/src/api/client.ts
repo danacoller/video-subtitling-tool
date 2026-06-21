@@ -48,6 +48,11 @@ export interface CuePatch {
   text?: string;
 }
 
+export async function listVideos(): Promise<VideoResponse[]> {
+  const { data } = await api.get<VideoResponse[]>("/videos");
+  return data;
+}
+
 export async function uploadVideo(
   file: File,
   onProgress?: (pct: number) => void

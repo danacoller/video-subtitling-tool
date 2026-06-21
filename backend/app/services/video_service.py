@@ -53,3 +53,6 @@ class VideoService:
         if video is None:
             raise VideoNotFoundError(f"Video {video_id} not found")
         return video
+
+    async def list_all(self) -> list[Video]:
+        return await self._repo.list_all()

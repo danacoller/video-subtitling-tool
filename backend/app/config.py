@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     ALLOWED_CONTENT_TYPES_RAW: str = (
         "video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm"
     )
-    WHISPER_MODEL: str = "base"
+    WHISPER_MODEL: str = "tiny"
     WORKER_POLL_INTERVAL: int = 3
 
     @computed_field  # type: ignore[misc]

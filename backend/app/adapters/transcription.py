@@ -17,7 +17,7 @@ class Transcriber(Protocol):
 class FasterWhisperTranscriber:
     """Production transcriber using faster-whisper. Model is loaded lazily."""
 
-    def __init__(self, model_size: str = "base") -> None:
+    def __init__(self, model_size: str = "tiny") -> None:
         self._model_size = model_size
         self._model = None
 
@@ -30,7 +30,14 @@ class FasterWhisperTranscriber:
 
     def transcribe(self, audio_path: Path) -> list[TranscriptSegment]:
         model = self._get_model()
-        segments, _ = model.transcribe(str(audio_path))
+        # vad_filter skips silent segments — significantly faster on real videos
+        # beam_size=1 uses greedy decoding instead of beam search — faster, minimally less accurate
+        segments, _ = model.transcribe(
+            str(audio_path),
+            beam_size=1,
+            vad_filter=True,
+            vad_parameters={"min_silence_duration_ms": 500},
+        )
         return [
             TranscriptSegment(
                 start_sec=seg.start,
@@ -38,6 +45,7 @@ class FasterWhisperTranscriber:
                 text=seg.text.strip(),
             )
             for seg in segments
+            if seg.text.strip()  # drop empty segments
         ]
 
 

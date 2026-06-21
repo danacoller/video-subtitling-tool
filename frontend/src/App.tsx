@@ -1,190 +1,255 @@
 import { useEffect, useRef, useState } from "react";
-import { CueResponse, JobResponse, getJob, listCues, transcribeVideo } from "./api/client";
+import {
+  CueResponse,
+  JobResponse,
+  VideoResponse,
+  getJob,
+  listCues,
+  listVideos,
+  transcribeVideo,
+} from "./api/client";
 import { ExportButton } from "./components/ExportButton";
 import { SubtitleEditor } from "./components/SubtitleEditor";
 import { UploadZone } from "./components/UploadZone";
 import { VideoPlayer, VideoPlayerHandle } from "./components/VideoPlayer";
 
-type Step = "upload" | "transcribe" | "edit";
+type Screen = "library" | "editor";
 
 export default function App() {
-  const [step, setStep] = useState<Step>("upload");
+  const [screen, setScreen] = useState<Screen>("library");
+  const [videos, setVideos] = useState<VideoResponse[]>([]);
+  const [loadingLibrary, setLoadingLibrary] = useState(true);
+
+  // Active video session
   const [videoId, setVideoId] = useState<string | null>(null);
+  const [videoName, setVideoName] = useState<string>("");
   const [job, setJob] = useState<JobResponse | null>(null);
   const [cues, setCues] = useState<CueResponse[]>([]);
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const [transcribeError, setTranscribeError] = useState<string | null>(null);
+  const [jobDone, setJobDone] = useState(false);
+
   const playerRef = useRef<VideoPlayerHandle>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  function handleUploaded(id: string) {
-    setVideoId(id);
-    setStep("transcribe");
-  }
-
-  async function handleTranscribe() {
-    if (!videoId) return;
-    setTranscribeError(null);
+  // Load video library on mount and when returning to library screen
+  async function loadLibrary() {
+    setLoadingLibrary(true);
     try {
-      const j = await transcribeVideo(videoId);
-      setJob(j);
-      startPolling(videoId);
-    } catch (err: unknown) {
-      setTranscribeError(err instanceof Error ? err.message : "Failed to start transcription");
+      const list = await listVideos();
+      setVideos(list);
+    } finally {
+      setLoadingLibrary(false);
     }
   }
 
+  useEffect(() => {
+    loadLibrary();
+  }, []);
+
+  function stopPolling() {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }
+
+  useEffect(() => () => stopPolling(), []);
+
   function startPolling(vid: string) {
-    if (pollRef.current) clearInterval(pollRef.current);
+    stopPolling();
     pollRef.current = setInterval(async () => {
       try {
         const j = await getJob(vid);
         setJob(j);
         if (j.status === "completed") {
-          clearInterval(pollRef.current!);
-          const loadedCues = await listCues(vid);
-          setCues(loadedCues);
-          setStep("edit");
+          stopPolling();
+          setJobDone(true);
+          const loaded = await listCues(vid);
+          setCues(loaded);
         } else if (j.status === "failed") {
-          clearInterval(pollRef.current!);
+          stopPolling();
           setTranscribeError(j.error_message ?? "Transcription failed");
         }
       } catch {
-        // silent — keep polling
+        // keep polling
       }
     }, 2000);
   }
 
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, []);
+  async function openVideo(video: VideoResponse) {
+    setVideoId(video.id);
+    setVideoName(video.original_name);
+    setJob(null);
+    setCues([]);
+    setTranscribeError(null);
+    setJobDone(false);
+    setCurrentTimeMs(0);
 
-  function handleSeek(ms: number) {
-    playerRef.current?.seekTo(ms);
+    // Check if there's already a job for this video
+    try {
+      const j = await getJob(video.id);
+      setJob(j);
+      if (j.status === "completed") {
+        setJobDone(true);
+        const loaded = await listCues(video.id);
+        setCues(loaded);
+      } else if (j.status === "queued" || j.status === "processing") {
+        startPolling(video.id);
+      }
+    } catch {
+      // No job yet — that's fine
+    }
+
+    setScreen("editor");
   }
 
+  function handleUploaded(video: VideoResponse) {
+    setVideos((prev) => [video, ...prev]);
+    openVideo(video);
+  }
+
+  async function handleTranscribe() {
+    if (!videoId) return;
+    setTranscribeError(null);
+    setJobDone(false);
+    setJob(null);
+    try {
+      const j = await transcribeVideo(videoId);
+      setJob(j);
+      startPolling(videoId);
+    } catch (err: unknown) {
+      setTranscribeError(
+        err instanceof Error ? err.message : "Failed to start transcription"
+      );
+    }
+  }
+
+  function handleRetry() {
+    setTranscribeError(null);
+    setJob(null);
+    handleTranscribe();
+  }
+
+  function goToLibrary() {
+    stopPolling();
+    setScreen("library");
+    loadLibrary();
+  }
+
+  // ─── Render ──────────────────────────────────────────────────────────────
+
+  if (screen === "library") {
+    return (
+      <div style={rootStyle}>
+        <Header />
+        <main style={{ maxWidth: 900, margin: "0 auto" }}>
+          <UploadZone onUploaded={handleUploaded} />
+
+          <h2 style={{ color: "#aaa", fontSize: "1rem", margin: "2rem 0 0.75rem" }}>
+            Previous videos
+          </h2>
+
+          {loadingLibrary ? (
+            <p style={{ color: "#555" }}>Loading…</p>
+          ) : videos.length === 0 ? (
+            <p style={{ color: "#444" }}>No videos yet — upload one above.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              {videos.map((v) => (
+                <VideoCard key={v.id} video={v} onClick={() => openVideo(v)} />
+              ))}
+            </div>
+          )}
+        </main>
+      </div>
+    );
+  }
+
+  // ─── Editor screen ────────────────────────────────────────────────────────
+  const isProcessing = job?.status === "queued" || job?.status === "processing";
+
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#0a0a14",
-        color: "#e0e0e0",
-        fontFamily: "'Segoe UI', system-ui, sans-serif",
-        padding: "2rem",
-        boxSizing: "border-box",
-      }}
-    >
-      <header style={{ marginBottom: "2rem", textAlign: "center" }}>
-        <h1 style={{ color: "#6c63ff", margin: 0, fontSize: "2rem" }}>
-          Video Subtitling Tool
-        </h1>
-        <p style={{ color: "#666", marginTop: "0.5rem" }}>
-          Upload → Generate → Edit → Export
-        </p>
-      </header>
+    <div style={rootStyle}>
+      <Header>
+        <button onClick={goToLibrary} style={backBtn}>
+          ← My Videos
+        </button>
+      </Header>
 
       <main style={{ maxWidth: 900, margin: "0 auto" }}>
-        {/* Step indicator */}
-        <div
-          style={{
-            display: "flex",
-            gap: "1rem",
-            marginBottom: "2rem",
-            justifyContent: "center",
-          }}
-        >
-          {(["upload", "transcribe", "edit"] as Step[]).map((s) => (
-            <div
-              key={s}
-              style={{
-                padding: "0.4rem 1rem",
-                borderRadius: 20,
-                fontSize: "0.85rem",
-                background: step === s ? "#6c63ff" : "#1a1a2e",
-                color: step === s ? "#fff" : "#555",
-                fontWeight: step === s ? 600 : 400,
-              }}
-            >
-              {s.charAt(0).toUpperCase() + s.slice(1)}
-            </div>
-          ))}
-        </div>
+        <p style={{ color: "#666", fontSize: "0.85rem", marginBottom: "1rem" }}>
+          {videoName}
+        </p>
 
-        {/* Upload step */}
-        {step === "upload" && <UploadZone onUploaded={handleUploaded} />}
-
-        {/* Transcribe step */}
-        {step === "transcribe" && videoId && (
-          <div>
-            <VideoPlayer
-              ref={playerRef}
-              videoId={videoId}
-              onTimeUpdate={setCurrentTimeMs}
-            />
-
-            <div style={{ marginTop: "1.5rem", textAlign: "center" }}>
-              {!job || job.status === "queued" || job.status === "failed" ? (
-                <>
-                  <button
-                    onClick={handleTranscribe}
-                    style={primaryBtn}
-                    disabled={job?.status === "queued"}
-                  >
-                    {job?.status === "queued" ? "Queued…" : "Generate captions"}
-                  </button>
-                  {transcribeError && (
-                    <p style={{ color: "#f44", marginTop: "0.5rem" }}>
-                      {transcribeError}
-                    </p>
-                  )}
-                </>
-              ) : job.status === "processing" ? (
-                <div>
-                  <div
-                    style={{
-                      background: "#222",
-                      borderRadius: 6,
-                      height: 8,
-                      overflow: "hidden",
-                      maxWidth: 400,
-                      margin: "0 auto",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: `${job.progress}%`,
-                        background: "#6c63ff",
-                        height: "100%",
-                        transition: "width 0.3s",
-                      }}
-                    />
-                  </div>
-                  <p style={{ color: "#aaa", marginTop: "0.5rem" }}>
-                    Transcribing… {job.progress}%
-                  </p>
-                </div>
-              ) : null}
-            </div>
-          </div>
+        {videoId && (
+          <VideoPlayer
+            ref={playerRef}
+            videoId={videoId}
+            onTimeUpdate={setCurrentTimeMs}
+          />
         )}
 
-        {/* Edit step */}
-        {step === "edit" && videoId && (
-          <div>
-            <VideoPlayer
-              ref={playerRef}
-              videoId={videoId}
-              onTimeUpdate={setCurrentTimeMs}
-            />
+        {/* ── Job status panel ── */}
+        <div style={{ marginTop: "1.25rem" }}>
+          {/* No job yet */}
+          {!job && !transcribeError && (
+            <button onClick={handleTranscribe} style={primaryBtn}>
+              Generate captions
+            </button>
+          )}
 
+          {/* Queued */}
+          {job?.status === "queued" && (
+            <StatusBadge color="#6c63ff" label="Queued — waiting for worker…" />
+          )}
+
+          {/* Processing */}
+          {job?.status === "processing" && (
+            <div>
+              <ProgressBar value={job.progress} />
+              <p style={{ color: "#aaa", marginTop: "0.4rem", fontSize: "0.85rem" }}>
+                Transcribing… {job.progress}%
+              </p>
+            </div>
+          )}
+
+          {/* Completed */}
+          {job?.status === "completed" && jobDone && (
+            <StatusBadge color="#2d8a4e" label="✓ Transcription complete" />
+          )}
+
+          {/* Failed */}
+          {(job?.status === "failed" || transcribeError) && (
+            <div
+              style={{
+                background: "#2a0a0a",
+                border: "1px solid #f44",
+                borderRadius: 8,
+                padding: "0.75rem 1rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "1rem",
+              }}
+            >
+              <span style={{ color: "#f66", flex: 1 }}>
+                ✗ Failed: {transcribeError ?? job?.error_message ?? "Unknown error"}
+              </span>
+              <button onClick={handleRetry} style={retryBtn}>
+                Retry
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ── Subtitle editor (shown once completed or after loading existing cues) ── */}
+        {jobDone && videoId && (
+          <div style={{ marginTop: "1.5rem" }}>
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                marginTop: "1.5rem",
                 marginBottom: "0.75rem",
               }}
             >
@@ -193,12 +258,11 @@ export default function App() {
               </h2>
               <ExportButton videoId={videoId} />
             </div>
-
             <SubtitleEditor
               videoId={videoId}
               initialCues={cues}
               currentTimeMs={currentTimeMs}
-              onSeek={handleSeek}
+              onSeek={(ms) => playerRef.current?.seekTo(ms)}
             />
           </div>
         )}
@@ -206,6 +270,132 @@ export default function App() {
     </div>
   );
 }
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
+
+function Header({ children }: { children?: React.ReactNode }) {
+  return (
+    <header
+      style={{
+        borderBottom: "1px solid #1e1e2e",
+        padding: "1rem 2rem",
+        marginBottom: "2rem",
+        display: "flex",
+        alignItems: "center",
+        gap: "1.5rem",
+      }}
+    >
+      <h1 style={{ color: "#6c63ff", margin: 0, fontSize: "1.5rem", flex: 1 }}>
+        Video Subtitling Tool
+      </h1>
+      {children}
+    </header>
+  );
+}
+
+function VideoCard({
+  video,
+  onClick,
+}: {
+  video: VideoResponse;
+  onClick: () => void;
+}) {
+  const date = new Date(video.created_at).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "1rem",
+        background: "#111",
+        border: "1px solid #222",
+        borderRadius: 8,
+        padding: "0.75rem 1rem",
+        cursor: "pointer",
+        textAlign: "left",
+        width: "100%",
+        transition: "border-color 0.15s",
+      }}
+      onMouseEnter={(e) =>
+        ((e.currentTarget as HTMLButtonElement).style.borderColor = "#6c63ff")
+      }
+      onMouseLeave={(e) =>
+        ((e.currentTarget as HTMLButtonElement).style.borderColor = "#222")
+      }
+    >
+      <span style={{ fontSize: "1.5rem" }}>🎬</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ margin: 0, color: "#ddd", fontWeight: 500, fontSize: "0.95rem" }}>
+          {video.original_name}
+        </p>
+        <p style={{ margin: 0, color: "#555", fontSize: "0.75rem" }}>
+          {(video.size_bytes / 1024 / 1024).toFixed(1)} MB · {date}
+        </p>
+      </div>
+      <span style={{ color: "#444", fontSize: "0.8rem" }}>Open →</span>
+    </button>
+  );
+}
+
+function StatusBadge({ color, label }: { color: string; label: string }) {
+  return (
+    <div
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        background: color + "22",
+        border: `1px solid ${color}`,
+        borderRadius: 6,
+        padding: "0.4rem 0.9rem",
+        color,
+        fontSize: "0.9rem",
+      }}
+    >
+      {label}
+    </div>
+  );
+}
+
+function ProgressBar({ value }: { value: number }) {
+  return (
+    <div
+      style={{
+        background: "#222",
+        borderRadius: 6,
+        height: 8,
+        overflow: "hidden",
+        maxWidth: 400,
+      }}
+    >
+      <div
+        style={{
+          width: `${value}%`,
+          background: "#6c63ff",
+          height: "100%",
+          transition: "width 0.3s",
+        }}
+      />
+    </div>
+  );
+}
+
+// ─── Styles ──────────────────────────────────────────────────────────────────
+
+const rootStyle: React.CSSProperties = {
+  minHeight: "100vh",
+  background: "#0a0a14",
+  color: "#e0e0e0",
+  fontFamily: "'Segoe UI', system-ui, sans-serif",
+  boxSizing: "border-box",
+};
 
 const primaryBtn: React.CSSProperties = {
   background: "#6c63ff",
@@ -215,4 +405,25 @@ const primaryBtn: React.CSSProperties = {
   cursor: "pointer",
   padding: "0.6rem 1.5rem",
   fontSize: "1rem",
+};
+
+const retryBtn: React.CSSProperties = {
+  background: "transparent",
+  border: "1px solid #f44",
+  borderRadius: 6,
+  color: "#f66",
+  cursor: "pointer",
+  padding: "0.35rem 0.9rem",
+  fontSize: "0.85rem",
+  whiteSpace: "nowrap",
+};
+
+const backBtn: React.CSSProperties = {
+  background: "transparent",
+  border: "1px solid #333",
+  borderRadius: 6,
+  color: "#888",
+  cursor: "pointer",
+  padding: "0.35rem 0.9rem",
+  fontSize: "0.85rem",
 };
