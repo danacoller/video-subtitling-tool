@@ -28,11 +28,19 @@ class JobRepository:
         await self._session.refresh(job)
         return job
 
+    async def get_by_id(self, job_id: uuid.UUID) -> TranscriptionJob | None:
+        result = await self._session.execute(
+            select(TranscriptionJob).where(TranscriptionJob.id == job_id)
+        )
+        return result.scalar_one_or_none()
+
     async def get_by_video_id(self, video_id: uuid.UUID) -> TranscriptionJob | None:
+        """Return the most recent job for a video (videos can have multiple jobs after re-transcribing)."""
         result = await self._session.execute(
             select(TranscriptionJob)
             .where(TranscriptionJob.video_id == video_id)
             .order_by(TranscriptionJob.created_at.desc())
+            .limit(1)
         )
         return result.scalar_one_or_none()
 
@@ -58,7 +66,8 @@ class JobRepository:
         if row is None:
             return None
         await self._session.flush()
-        return await self.get_by_video_id(row[0].video_id)
+        # Look up by job ID, not video ID — a video may have multiple jobs
+        return await self.get_by_id(row[0].id)
 
     async def update_progress(self, job_id: uuid.UUID, progress: int) -> None:
         await self._session.execute(
