@@ -25,14 +25,17 @@ export default function App() {
   // Active video session
   const [videoId, setVideoId] = useState<string | null>(null);
   const [videoName, setVideoName] = useState<string>("");
+  const [videoDuration, setVideoDuration] = useState<number | null>(null);
   const [job, setJob] = useState<JobResponse | null>(null);
   const [cues, setCues] = useState<CueResponse[]>([]);
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const [transcribeError, setTranscribeError] = useState<string | null>(null);
   const [jobDone, setJobDone] = useState(false);
+  const [elapsedSec, setElapsedSec] = useState(0);
 
   const playerRef = useRef<VideoPlayerHandle>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Load video library on mount and when returning to library screen
   async function loadLibrary() {
@@ -56,7 +59,23 @@ export default function App() {
     }
   }
 
-  useEffect(() => () => stopPolling(), []);
+  function stopTimer() {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }
+
+  function startTimer(startedAt: string | null) {
+    stopTimer();
+    const origin = startedAt ? new Date(startedAt).getTime() : Date.now();
+    setElapsedSec(Math.floor((Date.now() - origin) / 1000));
+    timerRef.current = setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - origin) / 1000));
+    }, 1000);
+  }
+
+  useEffect(() => () => { stopPolling(); stopTimer(); }, []);
 
   function startPolling(vid: string) {
     stopPolling();
@@ -64,13 +83,18 @@ export default function App() {
       try {
         const j = await getJob(vid);
         setJob(j);
+        if (j.status === "processing" && timerRef.current === null) {
+          startTimer(j.started_at);
+        }
         if (j.status === "completed") {
           stopPolling();
+          stopTimer();
           const loaded = await listCues(vid);
-          setCues(loaded);       // set cues before jobDone so editor mounts with data
+          setCues(loaded);
           setJobDone(true);
         } else if (j.status === "failed") {
           stopPolling();
+          stopTimer();
           setTranscribeError(j.error_message ?? "Transcription failed");
         }
       } catch {
@@ -82,11 +106,14 @@ export default function App() {
   async function openVideo(video: VideoResponse) {
     setVideoId(video.id);
     setVideoName(video.original_name);
+    setVideoDuration(video.duration_seconds);
     setJob(null);
     setCues([]);
     setTranscribeError(null);
     setJobDone(false);
     setCurrentTimeMs(0);
+    setElapsedSec(0);
+    stopTimer();
     setScreen("editor");
 
     // Load existing cues — if any exist, open editor directly, no job check needed
@@ -239,24 +266,33 @@ export default function App() {
             </button>
           )}
 
-          {/* Queued */}
-          {job?.status === "queued" && (
-            <StatusBadge color="#6c63ff" label="Queued — waiting for worker…" />
-          )}
-
           {/* Processing */}
           {job?.status === "processing" && (
             <div>
-              <ProgressBar value={job.progress} />
-              <p style={{ color: "#aaa", marginTop: "0.4rem", fontSize: "0.85rem" }}>
-                Transcribing… {job.progress}%
-              </p>
+              <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "0.4rem" }}>
+                <ProgressBar value={job.progress} />
+                <span style={{ color: "#6c63ff", fontSize: "0.85rem", fontVariantNumeric: "tabular-nums" }}>
+                  {job.progress}%
+                </span>
+              </div>
+              <DebugLine label="Status" value="Transcribing…" />
+              <DebugLine label="Elapsed" value={formatDuration(elapsedSec)} highlight />
+              {job.started_at && (
+                <DebugLine label="Started at" value={new Date(job.started_at).toLocaleTimeString()} />
+              )}
             </div>
           )}
 
-          {/* Completed */}
+          {/* Queued with elapsed */}
+          {job?.status === "queued" && (
+            <div>
+              <StatusBadge color="#6c63ff" label="Queued — waiting for worker…" />
+            </div>
+          )}
+
+          {/* Completed debug panel */}
           {job?.status === "completed" && jobDone && (
-            <StatusBadge color="#2d8a4e" label="✓ Transcription complete" />
+            <DebugPanel job={job} cueCount={cues.length} videoDuration={videoDuration} />
           )}
 
           {/* Failed */}
@@ -461,6 +497,99 @@ function VideoCard({
       >
         {deleting ? "…" : "Delete"}
       </button>
+    </div>
+  );
+}
+
+function formatDuration(totalSec: number): string {
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+function DebugLine({
+  label,
+  value,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div style={{ display: "flex", gap: "0.5rem", fontSize: "0.8rem", marginTop: "0.2rem" }}>
+      <span style={{ color: "#444", minWidth: 110 }}>{label}:</span>
+      <span style={{ color: highlight ? "#6c63ff" : "#888", fontVariantNumeric: "tabular-nums" }}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function DebugPanel({
+  job,
+  cueCount,
+  videoDuration,
+}: {
+  job: JobResponse;
+  cueCount: number;
+  videoDuration: number | null;
+}) {
+  const transcribeSec =
+    job.started_at && job.finished_at
+      ? Math.round(
+          (new Date(job.finished_at).getTime() - new Date(job.started_at).getTime()) / 1000
+        )
+      : null;
+
+  const speedRatio =
+    transcribeSec && videoDuration && transcribeSec > 0
+      ? (videoDuration / transcribeSec).toFixed(2)
+      : null;
+
+  return (
+    <div
+      style={{
+        background: "#0a0f0a",
+        border: "1px solid #1a3a1a",
+        borderRadius: 8,
+        padding: "0.75rem 1rem",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.5rem" }}>
+        <span style={{ color: "#2d8a4e", fontSize: "0.9rem" }}>✓ Transcription complete</span>
+        <span
+          style={{
+            background: "#1a3a1a",
+            color: "#4caf70",
+            fontSize: "0.7rem",
+            padding: "0.1rem 0.4rem",
+            borderRadius: 4,
+          }}
+        >
+          DEBUG
+        </span>
+      </div>
+      {job.started_at && (
+        <DebugLine label="Started at" value={new Date(job.started_at).toLocaleTimeString()} />
+      )}
+      {job.finished_at && (
+        <DebugLine label="Finished at" value={new Date(job.finished_at).toLocaleTimeString()} />
+      )}
+      {transcribeSec !== null && (
+        <DebugLine label="Transcribe time" value={formatDuration(transcribeSec)} highlight />
+      )}
+      {videoDuration !== null && (
+        <DebugLine label="Video duration" value={formatDuration(Math.round(videoDuration))} />
+      )}
+      {speedRatio !== null && (
+        <DebugLine label="Speed" value={`${speedRatio}× faster than real-time`} highlight />
+      )}
+      <DebugLine label="Segments" value={`${cueCount} subtitle cues`} />
+      <DebugLine label="Job ID" value={job.id} />
     </div>
   );
 }
