@@ -11,11 +11,12 @@ import {
   transcribeVideo,
 } from "./api/client";
 import { ExportButton } from "./components/ExportButton";
+import { JobsMonitor } from "./components/JobsMonitor";
 import { SubtitleEditor } from "./components/SubtitleEditor";
 import { UploadZone } from "./components/UploadZone";
 import { VideoPlayer, VideoPlayerHandle } from "./components/VideoPlayer";
 
-type Screen = "library" | "editor";
+type Screen = "library" | "editor" | "jobs";
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("library");
@@ -182,10 +183,33 @@ export default function App() {
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
+  if (screen === "jobs") {
+    return (
+      <div style={rootStyle}>
+        <Header activeScreen="jobs" onNav={setScreen} />
+        <main style={{ maxWidth: 900, margin: "0 auto" }}>
+          <h2 style={{ color: "#aaa", fontSize: "1rem", margin: "0 0 1.25rem" }}>
+            Transcription Jobs
+          </h2>
+          <JobsMonitor
+            onOpenVideo={async (videoId) => {
+              let v = videos.find((v) => v.id === videoId);
+              if (!v) {
+                const { getVideo } = await import("./api/client");
+                v = await getVideo(videoId);
+              }
+              openVideo(v);
+            }}
+          />
+        </main>
+      </div>
+    );
+  }
+
   if (screen === "library") {
     return (
       <div style={rootStyle}>
-        <Header />
+        <Header activeScreen="library" onNav={setScreen} />
         <main style={{ maxWidth: 900, margin: "0 auto" }}>
           <UploadZone onUploaded={handleUploaded} />
 
@@ -231,7 +255,7 @@ export default function App() {
   // ─── Editor screen ────────────────────────────────────────────────────────
   return (
     <div style={rootStyle}>
-      <Header>
+      <Header activeScreen="editor" onNav={setScreen}>
         <button onClick={goToLibrary} style={backBtn}>
           ← My Videos
         </button>
@@ -397,21 +421,53 @@ export default function App() {
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function Header({ children }: { children?: React.ReactNode }) {
+function Header({
+  children,
+  activeScreen,
+  onNav,
+}: {
+  children?: React.ReactNode;
+  activeScreen?: string;
+  onNav?: (screen: "library" | "jobs") => void;
+}) {
   return (
     <header
       style={{
         borderBottom: "1px solid #1e1e2e",
-        padding: "1rem 2rem",
+        padding: "0.75rem 2rem",
         marginBottom: "2rem",
         display: "flex",
         alignItems: "center",
         gap: "1.5rem",
       }}
     >
-      <h1 style={{ color: "#6c63ff", margin: 0, fontSize: "1.5rem", flex: 1 }}>
+      <h1 style={{ color: "#6c63ff", margin: 0, fontSize: "1.4rem" }}>
         Video Subtitling Tool
       </h1>
+
+      {onNav && (
+        <nav style={{ display: "flex", gap: "0.25rem", flex: 1 }}>
+          {(["library", "jobs"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => onNav(s)}
+              style={{
+                background: activeScreen === s ? "#1a1a2e" : "transparent",
+                border: "none",
+                borderRadius: 6,
+                color: activeScreen === s ? "#6c63ff" : "#555",
+                cursor: "pointer",
+                padding: "0.35rem 0.85rem",
+                fontSize: "0.85rem",
+                fontWeight: activeScreen === s ? 600 : 400,
+              }}
+            >
+              {s === "library" ? "My Videos" : "Jobs"}
+            </button>
+          ))}
+        </nav>
+      )}
+
       {children}
     </header>
   );

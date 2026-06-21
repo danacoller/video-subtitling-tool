@@ -50,6 +50,24 @@ export interface CuePatch {
   text?: string;
 }
 
+export interface JobWithVideo {
+  id: string;
+  video_id: string;
+  video_name: string;
+  video_duration: number | null;
+  status: "queued" | "processing" | "completed" | "failed";
+  progress: number;
+  error_message: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+}
+
+export async function listAllJobs(): Promise<JobWithVideo[]> {
+  const { data } = await api.get<JobWithVideo[]>("/jobs");
+  return data;
+}
+
 export async function listVideos(): Promise<VideoResponse[]> {
   const { data } = await api.get<VideoResponse[]>("/videos");
   return data;

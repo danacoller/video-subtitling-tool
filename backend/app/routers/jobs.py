@@ -6,10 +6,32 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_db
 from app.repositories.job_repo import JobRepository
 from app.repositories.video_repo import VideoRepository
-from app.schemas.job_schemas import JobResponse
+from app.schemas.job_schemas import JobResponse, JobWithVideoResponse
 from app.services.transcription_service import TranscriptionService
 
 router = APIRouter(tags=["jobs"])
+
+
+@router.get("/jobs", response_model=list[JobWithVideoResponse])
+async def list_all_jobs(
+    session: AsyncSession = Depends(get_db),
+) -> list[JobWithVideoResponse]:
+    rows = await JobRepository(session).list_all_with_video()
+    return [
+        JobWithVideoResponse(
+            id=job.id,
+            video_id=job.video_id,
+            video_name=video_name,
+            video_duration=video_duration,
+            status=job.status,
+            progress=job.progress,
+            error_message=job.error_message,
+            started_at=job.started_at,
+            finished_at=job.finished_at,
+            created_at=job.created_at,
+        )
+        for job, video_name, video_duration in rows
+    ]
 
 
 def _get_service(session: AsyncSession = Depends(get_db)) -> TranscriptionService:

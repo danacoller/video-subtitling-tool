@@ -114,6 +114,16 @@ class JobRepository:
         )
         return result.scalar_one()
 
+    async def list_all_with_video(self):
+        """Return all jobs joined with video info, most recent first."""
+        from app.models import Video  # avoid circular import at module level
+        result = await self._session.execute(
+            select(TranscriptionJob, Video.original_name, Video.duration_seconds)
+            .join(Video, Video.id == TranscriptionJob.video_id)
+            .order_by(TranscriptionJob.created_at.desc())
+        )
+        return result.all()
+
     async def active_job_progress(self) -> int | None:
         """Return the progress of the currently processing job, or None if nothing is processing."""
         result = await self._session.execute(

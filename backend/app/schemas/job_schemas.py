@@ -14,7 +14,20 @@ class JobResponse(BaseModel):
     finished_at: datetime | None
     created_at: datetime
     updated_at: datetime
-    queue_position: int | None = None       # position in queue (1 = next up), None when not queued
-    active_job_progress: int | None = None  # progress of the job currently being transcribed
+    queue_position: int | None = None
+    active_job_progress: int | None = None
 
     model_config = {"from_attributes": True}
+
+
+class JobWithVideoResponse(BaseModel):
+    id: uuid.UUID
+    video_id: uuid.UUID
+    video_name: str
+    video_duration: float | None
+    status: str
+    progress: int
+    error_message: str | None
+    started_at: datetime | None
+    finished_at: datetime | None
+    created_at: datetime
