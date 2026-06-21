@@ -12,7 +12,7 @@ class JobRepositoryProtocol(Protocol):
     async def create(self, job: TranscriptionJob) -> TranscriptionJob: ...
     async def get_by_video_id(self, video_id: uuid.UUID) -> TranscriptionJob | None: ...
     async def claim_queued(self) -> TranscriptionJob | None: ...
-    async def update_progress(self, job_id: uuid.UUID, progress: int) -> None: ...
+    async def update_progress(self, job_id: uuid.UUID, progress: int) -> bool: ...
     async def mark_completed(self, job_id: uuid.UUID) -> None: ...
     async def mark_failed(self, job_id: uuid.UUID, error: str) -> None: ...
     async def reset_orphaned(self) -> None: ...
@@ -69,13 +69,15 @@ class JobRepository:
         # Look up by job ID, not video ID — a video may have multiple jobs
         return await self.get_by_id(row[0].id)
 
-    async def update_progress(self, job_id: uuid.UUID, progress: int) -> None:
-        await self._session.execute(
+    async def update_progress(self, job_id: uuid.UUID, progress: int) -> bool:
+        """Update progress. Returns False if the job no longer exists (e.g. deleted)."""
+        result = await self._session.execute(
             update(TranscriptionJob)
             .where(TranscriptionJob.id == job_id)
             .values(progress=progress)
         )
         await self._session.flush()
+        return result.rowcount > 0
 
     async def mark_completed(self, job_id: uuid.UUID) -> None:
         await self._session.execute(

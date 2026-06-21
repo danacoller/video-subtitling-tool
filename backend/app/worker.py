@@ -87,6 +87,7 @@ async def run_worker(transcriber: Transcriber | None = None) -> None:
 
                     subtitles: list[Subtitle] = []
                     last_write_time = time.monotonic()
+                    cancelled = False
 
                     for i, seg in enumerate(transcriber.transcribe(audio_path), start=1):
                         subtitles.append(
@@ -113,12 +114,24 @@ async def run_worker(transcriber: Transcriber | None = None) -> None:
                         if now - last_write_time >= 1.0:
                             last_write_time = now
                             async with AsyncSessionLocal() as progress_session:
-                                await JobRepository(progress_session).update_progress(job.id, pct)
+                                still_exists = await JobRepository(
+                                    progress_session
+                                ).update_progress(job.id, pct)
                                 await progress_session.commit()
+                            # Job (and its video) was deleted mid-transcription — abort
+                            if not still_exists:
+                                logger.info(
+                                    "Job %s was deleted — aborting transcription", job.id
+                                )
+                                cancelled = True
+                                break
                             logger.info("Job %s progress %d%%", job.id, pct)
 
                 finally:
                     audio_path.unlink(missing_ok=True)
+
+                if cancelled:
+                    continue
 
                 await subtitle_repo.bulk_replace(job.video_id, subtitles)
                 await job_repo.mark_completed(job.id)
