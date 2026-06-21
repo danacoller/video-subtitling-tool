@@ -285,14 +285,32 @@ export default function App() {
 
           {/* Queued */}
           {job?.status === "queued" && (
-            <StatusBadge
-              color="#6c63ff"
-              label={
-                job.queue_position && job.queue_position > 1
-                  ? `Queued — position ${job.queue_position} (${job.queue_position - 1} job${job.queue_position > 2 ? "s" : ""} ahead)`
-                  : "Queued — next up, waiting for worker…"
-              }
-            />
+            <div>
+              {job.queue_position && job.queue_position > 1 ? (
+                <div
+                  style={{
+                    background: "#0d0d2e",
+                    border: "1px solid #6c63ff44",
+                    borderRadius: 8,
+                    padding: "0.75rem 1rem",
+                  }}
+                >
+                  <p style={{ margin: "0 0 0.5rem", color: "#6c63ff", fontSize: "0.9rem" }}>
+                    ⏳ Queued — {job.queue_position - 1} job{job.queue_position > 2 ? "s" : ""} ahead of yours
+                  </p>
+                  {job.active_job_progress !== null && (
+                    <>
+                      <p style={{ margin: "0 0 0.35rem", color: "#555", fontSize: "0.75rem" }}>
+                        Current transcription: {job.active_job_progress}%
+                      </p>
+                      <ProgressBar value={job.active_job_progress} />
+                    </>
+                  )}
+                </div>
+              ) : (
+                <StatusBadge color="#6c63ff" label="Queued — next up, starting soon…" />
+              )}
+            </div>
           )}
 
           {/* Stats panel — shown once subtitles are ready */}

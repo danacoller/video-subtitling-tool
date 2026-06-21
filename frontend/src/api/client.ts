@@ -24,6 +24,7 @@ export interface JobResponse {
   created_at: string;
   updated_at: string;
   queue_position: number | null;
+  active_job_progress: number | null;
 }
 
 export interface CueResponse {

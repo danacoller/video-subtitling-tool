@@ -114,6 +114,16 @@ class JobRepository:
         )
         return result.scalar_one()
 
+    async def active_job_progress(self) -> int | None:
+        """Return the progress of the currently processing job, or None if nothing is processing."""
+        result = await self._session.execute(
+            select(TranscriptionJob.progress)
+            .where(TranscriptionJob.status == "processing")
+            .limit(1)
+        )
+        row = result.scalar_one_or_none()
+        return row
+
     async def reset_orphaned(self) -> None:
         """On worker startup: set processing -> queued for jobs left in-flight."""
         await self._session.execute(

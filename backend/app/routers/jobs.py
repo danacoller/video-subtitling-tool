@@ -41,5 +41,7 @@ async def get_job(
     job = await service.get_job(video_id)
     response = JobResponse.model_validate(job)
     if job.status == "queued":
-        response.queue_position = await JobRepository(session).queue_position(job.id)
+        repo = JobRepository(session)
+        response.queue_position = await repo.queue_position(job.id)
+        response.active_job_progress = await repo.active_job_progress()
     return response
