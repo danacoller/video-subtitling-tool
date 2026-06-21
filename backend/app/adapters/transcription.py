@@ -17,7 +17,7 @@ class Transcriber(Protocol):
 class FasterWhisperTranscriber:
     """Production transcriber using faster-whisper. Model is loaded lazily."""
 
-    def __init__(self, model_size: str = "tiny") -> None:
+    def __init__(self, model_size: str = "small") -> None:
         self._model_size = model_size
         self._model = None
 
