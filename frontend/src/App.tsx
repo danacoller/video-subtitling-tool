@@ -3,6 +3,8 @@ import {
   CueResponse,
   JobResponse,
   VideoResponse,
+  deleteAllVideos,
+  deleteVideo,
   getJob,
   listCues,
   listVideos,
@@ -140,6 +142,17 @@ export default function App() {
     loadLibrary();
   }
 
+  async function handleDeleteVideo(id: string) {
+    await deleteVideo(id);
+    setVideos((prev) => prev.filter((v) => v.id !== id));
+  }
+
+  async function handleDeleteAll() {
+    if (!window.confirm("Delete all videos? This cannot be undone.")) return;
+    await deleteAllVideos();
+    setVideos([]);
+  }
+
   // ─── Render ──────────────────────────────────────────────────────────────
 
   if (screen === "library") {
@@ -149,9 +162,23 @@ export default function App() {
         <main style={{ maxWidth: 900, margin: "0 auto" }}>
           <UploadZone onUploaded={handleUploaded} />
 
-          <h2 style={{ color: "#aaa", fontSize: "1rem", margin: "2rem 0 0.75rem" }}>
-            Previous videos
-          </h2>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              margin: "2rem 0 0.75rem",
+              gap: "1rem",
+            }}
+          >
+            <h2 style={{ color: "#aaa", fontSize: "1rem", margin: 0, flex: 1 }}>
+              Previous videos
+            </h2>
+            {videos.length > 0 && (
+              <button onClick={handleDeleteAll} style={deleteAllBtn}>
+                Delete all
+              </button>
+            )}
+          </div>
 
           {loadingLibrary ? (
             <p style={{ color: "#555" }}>Loading…</p>
@@ -160,7 +187,12 @@ export default function App() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
               {videos.map((v) => (
-                <VideoCard key={v.id} video={v} onClick={() => openVideo(v)} />
+                <VideoCard
+                  key={v.id}
+                  video={v}
+                  onClick={() => openVideo(v)}
+                  onDelete={() => handleDeleteVideo(v.id)}
+                />
               ))}
             </div>
           )}
@@ -304,10 +336,14 @@ function Header({ children }: { children?: React.ReactNode }) {
 function VideoCard({
   video,
   onClick,
+  onDelete,
 }: {
   video: VideoResponse;
   onClick: () => void;
+  onDelete: () => void;
 }) {
+  const [deleting, setDeleting] = useState(false);
+
   const date = new Date(video.created_at).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
@@ -315,9 +351,22 @@ function VideoCard({
     minute: "2-digit",
   });
 
+  const duration = video.duration_seconds != null
+    ? `${Math.floor(video.duration_seconds / 60)}:${String(Math.round(video.duration_seconds % 60)).padStart(2, "0")}`
+    : null;
+
+  async function handleDelete(e: React.MouseEvent) {
+    e.stopPropagation();
+    setDeleting(true);
+    try {
+      await onDelete();
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
-    <button
-      onClick={onClick}
+    <div
       style={{
         display: "flex",
         alignItems: "center",
@@ -326,29 +375,71 @@ function VideoCard({
         border: "1px solid #222",
         borderRadius: 8,
         padding: "0.75rem 1rem",
-        cursor: "pointer",
-        textAlign: "left",
-        width: "100%",
         transition: "border-color 0.15s",
       }}
       onMouseEnter={(e) =>
-        ((e.currentTarget as HTMLButtonElement).style.borderColor = "#6c63ff")
+        ((e.currentTarget as HTMLDivElement).style.borderColor = "#6c63ff")
       }
       onMouseLeave={(e) =>
-        ((e.currentTarget as HTMLButtonElement).style.borderColor = "#222")
+        ((e.currentTarget as HTMLDivElement).style.borderColor = "#222")
       }
     >
-      <span style={{ fontSize: "1.5rem" }}>🎬</span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, color: "#ddd", fontWeight: 500, fontSize: "0.95rem" }}>
-          {video.original_name}
-        </p>
-        <p style={{ margin: 0, color: "#555", fontSize: "0.75rem" }}>
-          {(video.size_bytes / 1024 / 1024).toFixed(1)} MB · {date}
-        </p>
-      </div>
-      <span style={{ color: "#444", fontSize: "0.8rem" }}>Open →</span>
-    </button>
+      {/* Clickable area */}
+      <button
+        onClick={onClick}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "1rem",
+          flex: 1,
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          textAlign: "left",
+          padding: 0,
+          minWidth: 0,
+        }}
+      >
+        <span style={{ fontSize: "1.5rem" }}>🎬</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ margin: 0, color: "#ddd", fontWeight: 500, fontSize: "0.95rem" }}>
+            {video.original_name}
+          </p>
+          <p style={{ margin: 0, color: "#555", fontSize: "0.75rem" }}>
+            {(video.size_bytes / 1024 / 1024).toFixed(1)} MB
+            {duration && ` · ${duration}`}
+            {` · ${date}`}
+          </p>
+        </div>
+        <span style={{ color: "#444", fontSize: "0.8rem", marginRight: "0.5rem" }}>Open →</span>
+      </button>
+
+      {/* Delete button */}
+      <button
+        onClick={handleDelete}
+        disabled={deleting}
+        title="Delete video"
+        style={{
+          background: "transparent",
+          border: "1px solid #3a1515",
+          borderRadius: 6,
+          color: deleting ? "#555" : "#c44",
+          cursor: deleting ? "not-allowed" : "pointer",
+          padding: "0.3rem 0.7rem",
+          fontSize: "0.8rem",
+          whiteSpace: "nowrap",
+          flexShrink: 0,
+        }}
+        onMouseEnter={(e) => {
+          if (!deleting) (e.currentTarget as HTMLButtonElement).style.background = "#2a0a0a";
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+        }}
+      >
+        {deleting ? "…" : "Delete"}
+      </button>
+    </div>
   );
 }
 
@@ -434,4 +525,14 @@ const backBtn: React.CSSProperties = {
   cursor: "pointer",
   padding: "0.35rem 0.9rem",
   fontSize: "0.85rem",
+};
+
+const deleteAllBtn: React.CSSProperties = {
+  background: "transparent",
+  border: "1px solid #3a1515",
+  borderRadius: 6,
+  color: "#c44",
+  cursor: "pointer",
+  padding: "0.3rem 0.8rem",
+  fontSize: "0.8rem",
 };

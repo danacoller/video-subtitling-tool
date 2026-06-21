@@ -51,6 +51,11 @@ class LocalStorageAdapter:
     def delete(self, path: Path) -> None:
         try:
             path.unlink(missing_ok=True)
+            # Remove the parent uuid directory if it is now empty
+            try:
+                path.parent.rmdir()
+            except OSError:
+                pass
         except OSError as exc:
             raise StorageError(f"Failed to delete file: {exc}") from exc
 

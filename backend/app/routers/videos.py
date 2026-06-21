@@ -55,6 +55,25 @@ async def get_video(
     return VideoResponse.model_validate(video)
 
 
+@router.delete("/videos", status_code=204)
+async def delete_all_videos(
+    service: VideoService = Depends(_get_service),
+    session: AsyncSession = Depends(get_db),
+) -> None:
+    await service.delete_all()
+    await session.commit()
+
+
+@router.delete("/videos/{video_id}", status_code=204)
+async def delete_video(
+    video_id: uuid.UUID,
+    service: VideoService = Depends(_get_service),
+    session: AsyncSession = Depends(get_db),
+) -> None:
+    await service.delete(video_id)
+    await session.commit()
+
+
 @router.get("/videos/{video_id}/stream")
 async def stream_video(
     video_id: uuid.UUID,

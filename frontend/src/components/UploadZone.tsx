@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { VideoResponse, uploadVideo } from "../api/client";
 
@@ -9,6 +9,7 @@ interface Props {
 export function UploadZone({ onUploaded }: Props) {
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const onDrop = useCallback(
     async (files: File[]) => {
@@ -27,48 +28,63 @@ export function UploadZone({ onUploaded }: Props) {
     [onUploaded]
   );
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
     accept: { "video/*": [".mp4", ".mov", ".avi", ".mkv", ".webm"] },
     multiple: false,
     disabled: progress !== null,
+    noClick: true, // we handle click via button
   });
 
   return (
-    <div style={{ textAlign: "center" }}>
+    <div>
+      {/* Browse button row */}
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
+        <button
+          onClick={open}
+          disabled={progress !== null}
+          style={{
+            background: "#6c63ff",
+            border: "none",
+            borderRadius: 6,
+            color: "#fff",
+            cursor: progress !== null ? "not-allowed" : "pointer",
+            padding: "0.55rem 1.25rem",
+            fontSize: "0.95rem",
+            opacity: progress !== null ? 0.5 : 1,
+          }}
+        >
+          + Upload video
+        </button>
+        <span style={{ color: "#555", fontSize: "0.85rem" }}>or drag a file into the area below</span>
+      </div>
+
+      {/* Drop zone */}
       <div
         {...getRootProps()}
         style={{
-          border: "2px dashed #555",
+          border: `2px dashed ${isDragActive ? "#6c63ff" : "#333"}`,
           borderRadius: 12,
-          padding: "3rem 2rem",
-          background: isDragActive ? "#1a1a2e" : "#0f0f1a",
-          cursor: progress !== null ? "not-allowed" : "pointer",
-          color: "#aaa",
-          fontSize: "1.1rem",
+          padding: "2rem",
+          background: isDragActive ? "#1a1a2e" : "#0a0a12",
+          cursor: "default",
+          color: "#555",
+          fontSize: "0.9rem",
+          textAlign: "center",
+          transition: "border-color 0.15s, background 0.15s",
         }}
       >
-        <input {...getInputProps()} />
+        <input {...getInputProps()} ref={inputRef} />
         {isDragActive ? (
-          <p>Drop the video here…</p>
+          <p style={{ margin: 0, color: "#aaa" }}>Drop the video here…</p>
         ) : (
-          <p>Drag & drop a video file here, or click to select</p>
+          <p style={{ margin: 0 }}>Drop a video file here · MP4, MOV, AVI, MKV, WebM</p>
         )}
-        <p style={{ fontSize: "0.85rem", color: "#666" }}>
-          Supported: MP4, MOV, AVI, MKV, WebM
-        </p>
       </div>
 
       {progress !== null && (
-        <div style={{ marginTop: "1rem" }}>
-          <div
-            style={{
-              background: "#222",
-              borderRadius: 6,
-              height: 8,
-              overflow: "hidden",
-            }}
-          >
+        <div style={{ marginTop: "0.75rem" }}>
+          <div style={{ background: "#222", borderRadius: 6, height: 6, overflow: "hidden" }}>
             <div
               style={{
                 width: `${progress}%`,
@@ -78,13 +94,13 @@ export function UploadZone({ onUploaded }: Props) {
               }}
             />
           </div>
-          <p style={{ color: "#aaa", marginTop: "0.5rem" }}>
+          <p style={{ color: "#aaa", marginTop: "0.4rem", fontSize: "0.85rem" }}>
             Uploading… {progress}%
           </p>
         </div>
       )}
 
-      {error && <p style={{ color: "#f44", marginTop: "0.5rem" }}>{error}</p>}
+      {error && <p style={{ color: "#f44", marginTop: "0.5rem", fontSize: "0.85rem" }}>{error}</p>}
     </div>
   );
 }

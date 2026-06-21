@@ -53,6 +53,14 @@ export async function listVideos(): Promise<VideoResponse[]> {
   return data;
 }
 
+export async function deleteVideo(id: string): Promise<void> {
+  await api.delete(`/videos/${id}`);
+}
+
+export async function deleteAllVideos(): Promise<void> {
+  await api.delete("/videos");
+}
+
 export async function uploadVideo(
   file: File,
   onProgress?: (pct: number) => void

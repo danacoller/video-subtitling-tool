@@ -1,7 +1,7 @@
 import uuid
 from typing import Protocol
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Video
@@ -12,6 +12,8 @@ class VideoRepositoryProtocol(Protocol):
     async def get_by_id(self, video_id: uuid.UUID) -> Video | None: ...
     async def list_all(self) -> list[Video]: ...
     async def update_status(self, video_id: uuid.UUID, status: str) -> Video | None: ...
+    async def delete(self, video_id: uuid.UUID) -> bool: ...
+    async def delete_all(self) -> list[Video]: ...
 
 
 class VideoRepository:
@@ -43,3 +45,17 @@ class VideoRepository:
         video.status = status
         await self._session.flush()
         return video
+
+    async def delete(self, video_id: uuid.UUID) -> bool:
+        video = await self.get_by_id(video_id)
+        if video is None:
+            return False
+        await self._session.delete(video)
+        await self._session.flush()
+        return True
+
+    async def delete_all(self) -> list[Video]:
+        all_videos = await self.list_all()
+        await self._session.execute(delete(Video))
+        await self._session.flush()
+        return all_videos

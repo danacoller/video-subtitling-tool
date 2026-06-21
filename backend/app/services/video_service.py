@@ -1,6 +1,7 @@
 import json
 import subprocess
 import uuid
+from pathlib import Path
 from typing import BinaryIO
 
 from app.adapters.storage import StorageAdapter
@@ -80,3 +81,15 @@ class VideoService:
 
     async def list_all(self) -> list[Video]:
         return await self._repo.list_all()
+
+    async def delete(self, video_id: uuid.UUID) -> None:
+        video = await self._repo.get_by_id(video_id)
+        if video is None:
+            raise VideoNotFoundError(f"Video {video_id} not found")
+        self._storage.delete(Path(video.storage_path))
+        await self._repo.delete(video_id)
+
+    async def delete_all(self) -> None:
+        videos = await self._repo.delete_all()
+        for video in videos:
+            self._storage.delete(Path(video.storage_path))
