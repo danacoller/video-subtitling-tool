@@ -87,27 +87,23 @@ export default function App() {
     setCurrentTimeMs(0);
     setScreen("editor");
 
-    // Load existing cues first — if any exist, open directly into edit mode
+    // Load existing cues — if any exist, open editor directly, no job check needed
     const existingCues = await listCues(video.id).catch(() => []);
     if (existingCues.length > 0) {
       setCues(existingCues);
       setJobDone(true);
+      return;
     }
 
-    // Then check job status for progress display / polling
+    // No cues yet — check if transcription is currently in progress
     try {
       const j = await getJob(video.id);
       setJob(j);
-      if (j.status === "completed" && existingCues.length === 0) {
-        // Completed but cues somehow empty — try loading again
-        const loaded = await listCues(video.id);
-        setCues(loaded);
-        setJobDone(true);
-      } else if (j.status === "queued" || j.status === "processing") {
+      if (j.status === "queued" || j.status === "processing") {
         startPolling(video.id);
       }
     } catch {
-      // No job yet — that's fine, user can transcribe
+      // No job either — fresh video, user can click "Generate captions"
     }
   }
 
