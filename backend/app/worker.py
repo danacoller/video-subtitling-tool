@@ -25,7 +25,6 @@ def _handle_sigterm(signum, frame):
     _shutdown = True
 
 
-
 async def run_worker(transcriber: Transcriber | None = None) -> None:
     if transcriber is None:
         transcriber = FasterWhisperTranscriber(model_size=settings.WHISPER_MODEL)
@@ -40,15 +39,10 @@ async def run_worker(transcriber: Transcriber | None = None) -> None:
 
     while not _shutdown:
         async with AsyncSessionLocal() as session:
-            job_repo = JobRepository(session)
-            video_repo = VideoRepository(session)
-            subtitle_repo = SubtitleRepository(session)
-
-            job = await job_repo.claim_queued()
+            job = await JobRepository(session).claim_queued()
             if job is None:
                 await asyncio.sleep(settings.WORKER_POLL_INTERVAL)
                 continue
-
             await session.commit()
             logger.info("Processing job %s for video %s", job.id, job.video_id)
 

@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.storage import LocalStorageAdapter
 from app.db import get_db
-from app.errors import VideoNotFoundError
 from app.repositories.video_repo import VideoRepository
 from app.schemas.video_schemas import VideoResponse
 from app.services.video_service import VideoService

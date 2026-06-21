@@ -45,8 +45,7 @@ def create_app() -> FastAPI:
     async def health() -> dict[str, str]:
         return {"status": "ok"}
 
-    # Routers registered here after they are implemented
-    from app.routers import videos, subtitles, jobs  # noqa: E402
+    from app.routers import jobs, subtitles, videos
 
     app.include_router(videos.router, prefix="/api/v1")
     app.include_router(subtitles.router, prefix="/api/v1")
