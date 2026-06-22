@@ -2,14 +2,11 @@
 import io
 import uuid
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.errors import VideoNotFoundError
 from app.main import app
-from app.models import Video
 from app.repositories.fakes import FakeVideoRepository
 from app.routers.videos import _get_service
 from app.services.video_service import VideoService
@@ -33,6 +30,13 @@ class FakeStorage:
 
     def file_size(self, path: Path) -> int:
         return len(self._files.get(str(path), b""))
+
+    def stream_full(self, path: Path):
+        yield self._files.get(str(path), b"")
+
+    def stream_range(self, path: Path, start: int, end: int):
+        data = self._files.get(str(path), b"")
+        yield data[start : end + 1]
 
 
 @pytest.fixture()

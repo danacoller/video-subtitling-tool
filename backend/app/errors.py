@@ -41,3 +41,8 @@ class TranscriptionError(AppError):
 class InvalidCueError(AppError):
     status_code = 422
     code = "invalid_cue"
+
+
+class VideoUploadError(AppError):
+    status_code = 422
+    code = "invalid_upload"

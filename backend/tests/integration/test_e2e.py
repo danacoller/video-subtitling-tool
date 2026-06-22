@@ -4,28 +4,17 @@ with fake repositories, so no real DB or storage is needed.
 
 Flow: upload -> transcribe -> simulate worker -> edit -> export VTT
 """
-import io
 import uuid
-from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.adapters.transcription import FakeTranscriber, TranscriptSegment
-from app.errors import (
-    DuplicateJobError,
-    InvalidCueError,
-    VideoNotFoundError,
-)
+from app.adapters.transcription import FakeTranscriber
+from app.errors import DuplicateJobError, InvalidCueError, VideoNotFoundError
 from app.models import Subtitle, TranscriptionJob, Video
 from app.repositories.fakes import FakeJobRepository, FakeSubtitleRepository, FakeVideoRepository
 from app.schemas.subtitle_schemas import CueCreate, CuePatch
 from app.services.subtitle_service import SubtitleService
 from app.services.transcription_service import TranscriptionService
-
-
-def _make_fake_video_repo_with_video():
-    video_repo = FakeVideoRepository()
-    return video_repo
 
 
 @pytest.fixture()

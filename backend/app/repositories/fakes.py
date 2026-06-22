@@ -25,12 +25,13 @@ class FakeVideoRepository:
     async def list_all(self) -> list[Video]:
         return sorted(self._store.values(), key=lambda v: v.created_at, reverse=True)
 
-    async def update_status(self, video_id: uuid.UUID, status: str) -> Video | None:
-        video = self._store.get(video_id)
-        if video is None:
-            return None
-        video.status = status
-        return video
+    async def delete(self, video_id: uuid.UUID) -> None:
+        self._store.pop(video_id, None)
+
+    async def delete_all(self) -> list[Video]:
+        videos = list(self._store.values())
+        self._store.clear()
+        return videos
 
 
 class FakeJobRepository:
@@ -45,6 +46,9 @@ class FakeJobRepository:
         job.updated_at = now
         self._store[job.id] = job
         return job
+
+    async def get_by_id(self, job_id: uuid.UUID) -> TranscriptionJob | None:
+        return self._store.get(job_id)
 
     async def get_by_video_id(self, video_id: uuid.UUID) -> TranscriptionJob | None:
         jobs = [j for j in self._store.values() if j.video_id == video_id]
@@ -61,10 +65,12 @@ class FakeJobRepository:
         job.started_at = datetime.now(tz=timezone.utc)
         return job
 
-    async def update_progress(self, job_id: uuid.UUID, progress: int) -> None:
+    async def update_progress(self, job_id: uuid.UUID, progress: int) -> bool:
         job = self._store.get(job_id)
-        if job:
-            job.progress = progress
+        if job is None:
+            return False
+        job.progress = progress
+        return True
 
     async def mark_completed(self, job_id: uuid.UUID) -> None:
         job = self._store.get(job_id)
@@ -79,6 +85,24 @@ class FakeJobRepository:
             job.status = "failed"
             job.error_message = error
             job.finished_at = datetime.now(tz=timezone.utc)
+
+    async def queue_position(self, job_id: uuid.UUID) -> int | None:
+        job = self._store.get(job_id)
+        if job is None or job.status != "queued":
+            return None
+        queued = sorted(
+            [j for j in self._store.values() if j.status == "queued"],
+            key=lambda j: j.created_at,
+        )
+        positions = {j.id: i + 1 for i, j in enumerate(queued)}
+        return positions.get(job_id)
+
+    async def active_job_progress(self) -> int | None:
+        processing = [j for j in self._store.values() if j.status == "processing"]
+        return processing[0].progress if processing else None
+
+    async def list_all_with_video(self) -> list:
+        return []
 
     async def reset_orphaned(self) -> None:
         for job in self._store.values():
@@ -117,9 +141,7 @@ class FakeSubtitleRepository:
     async def bulk_replace(
         self, video_id: uuid.UUID, subtitles: list[Subtitle]
     ) -> list[Subtitle]:
-        to_delete = [
-            sid for sid, s in self._store.items() if s.video_id == video_id
-        ]
+        to_delete = [sid for sid, s in self._store.items() if s.video_id == video_id]
         for sid in to_delete:
             del self._store[sid]
         for sub in subtitles:

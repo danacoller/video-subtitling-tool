@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { CueResponse } from "../api/client";
 
 function msToDisplay(ms: number): string {
@@ -93,7 +94,7 @@ export function CueRow({
   );
 }
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   background: "#1e1e2e",
   border: "1px solid #333",
   borderRadius: 4,
@@ -102,7 +103,7 @@ const inputStyle: React.CSSProperties = {
   fontSize: "0.85rem",
 };
 
-const btnStyle: React.CSSProperties = {
+const btnStyle: CSSProperties = {
   background: "#222",
   border: "1px solid #333",
   borderRadius: 4,

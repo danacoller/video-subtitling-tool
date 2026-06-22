@@ -1,7 +1,8 @@
 import uuid
 
+from app.domain.validation import validate_cue_timing
 from app.domain.vtt import serialize_vtt
-from app.errors import CueNotFoundError, InvalidCueError, VideoNotFoundError
+from app.errors import CueNotFoundError, VideoNotFoundError
 from app.models import Subtitle
 from app.repositories.subtitle_repo import SubtitleRepositoryProtocol
 from app.repositories.video_repo import VideoRepositoryProtocol
@@ -31,13 +32,10 @@ class SubtitleService:
         if video is None:
             raise VideoNotFoundError(f"Video {video_id} not found")
 
-        if end_ms <= start_ms:
-            raise InvalidCueError(
-                f"end_ms ({end_ms}) must be greater than start_ms ({start_ms})"
-            )
+        validate_cue_timing(start_ms, end_ms)
 
         existing = await self._subtitle_repo.list_by_video(video_id)
-        position = (max((s.position for s in existing), default=0) + 1)
+        position = max((s.position for s in existing), default=0) + 1
 
         subtitle = Subtitle(
             video_id=video_id,
@@ -55,11 +53,7 @@ class SubtitleService:
 
         new_start = patch.start_ms if patch.start_ms is not None else subtitle.start_ms
         new_end = patch.end_ms if patch.end_ms is not None else subtitle.end_ms
-
-        if new_end <= new_start:
-            raise InvalidCueError(
-                f"end_ms ({new_end}) must be greater than start_ms ({new_start})"
-            )
+        validate_cue_timing(new_start, new_end)
 
         if patch.start_ms is not None:
             subtitle.start_ms = patch.start_ms
@@ -85,10 +79,7 @@ class SubtitleService:
 
         new_subtitles = []
         for i, cue in enumerate(cues, start=1):
-            if cue.end_ms <= cue.start_ms:
-                raise InvalidCueError(
-                    f"Cue {i}: end_ms ({cue.end_ms}) must be greater than start_ms ({cue.start_ms})"
-                )
+            validate_cue_timing(cue.start_ms, cue.end_ms)
             new_subtitles.append(
                 Subtitle(
                     video_id=video_id,

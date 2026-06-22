@@ -1,7 +1,6 @@
 """Worker unit tests using FakeTranscriber and fake repos — no DB, no ffmpeg."""
 import uuid
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 

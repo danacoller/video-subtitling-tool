@@ -4,7 +4,7 @@ import pytest
 
 from app.errors import CueNotFoundError, InvalidCueError, VideoNotFoundError
 from app.models import Video
-from app.repositories.fakes import FakeJobRepository, FakeSubtitleRepository, FakeVideoRepository
+from app.repositories.fakes import FakeSubtitleRepository, FakeVideoRepository
 from app.schemas.subtitle_schemas import CueCreate, CuePatch
 from app.services.subtitle_service import SubtitleService
 

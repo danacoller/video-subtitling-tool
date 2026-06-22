@@ -3,7 +3,7 @@ import uuid
 
 import pytest
 
-from app.errors import InvalidCueError, VideoNotFoundError
+from app.errors import VideoNotFoundError, VideoUploadError
 from app.repositories.fakes import FakeVideoRepository
 from app.services.video_service import VideoService
 
@@ -56,7 +56,7 @@ async def test_upload_happy_path(service):
 
 @pytest.mark.asyncio
 async def test_upload_unsupported_content_type_raises(service):
-    with pytest.raises(InvalidCueError, match="not allowed"):
+    with pytest.raises(VideoUploadError, match="not allowed"):
         await service.upload(
             filename="doc.pdf",
             content_type="application/pdf",
@@ -78,7 +78,7 @@ async def test_upload_oversized_file_raises():
     settings.MAX_UPLOAD_BYTES = 10  # 10 bytes max
 
     try:
-        with pytest.raises(InvalidCueError, match="size"):
+        with pytest.raises(VideoUploadError, match="size"):
             await svc.upload("big.mp4", "video/mp4", io.BytesIO(big_data[:20]))
     finally:
         settings.MAX_UPLOAD_BYTES = original

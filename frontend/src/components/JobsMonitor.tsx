@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { JobWithVideo, listAllJobs } from "../api/client";
+import { ProgressBar } from "./shared/ProgressBar";
+import { formatDuration } from "../utils/format";
 
 interface Props {
   onOpenVideo: (videoId: string) => void | Promise<void>;
@@ -38,6 +40,7 @@ export function JobsMonitor({ onOpenVideo }: Props) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+      <style>{`@keyframes jm-pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
       <JobSection title="Running" color="#6c63ff" jobs={active} onOpen={onOpenVideo} />
       <JobSection title="Queued" color="#888" jobs={queued} onOpen={onOpenVideo} />
       <JobSection title="Failed" color="#c44" jobs={failed} onOpen={onOpenVideo} />
@@ -102,7 +105,7 @@ function JobRow({
       : null;
 
   const duration = job.video_duration
-    ? formatDur(Math.round(job.video_duration))
+    ? formatDuration(Math.round(job.video_duration))
     : null;
 
   return (
@@ -133,7 +136,7 @@ function JobRow({
           borderRadius: "50%",
           background: color,
           flexShrink: 0,
-          ...(job.status === "processing" ? { animation: "pulse 1.4s ease-in-out infinite" } : {}),
+          ...(job.status === "processing" ? { animation: "jm-pulse 1.4s ease-in-out infinite" } : {}),
         }}
       />
 
@@ -145,7 +148,7 @@ function JobRow({
         <p style={{ margin: 0, color: "#555", fontSize: "0.72rem" }}>
           {duration && `${duration} · `}
           {new Date(job.created_at).toLocaleTimeString()}
-          {elapsed !== null && ` · ${formatDur(elapsed)} elapsed`}
+          {elapsed !== null && ` · ${formatDuration(elapsed)} elapsed`}
         </p>
       </div>
 
@@ -153,12 +156,10 @@ function JobRow({
       <div style={{ flexShrink: 0, textAlign: "right" }}>
         {job.status === "processing" && (
           <div style={{ minWidth: 120 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-              <span style={{ color: color, fontSize: "0.75rem" }}>{job.progress}%</span>
-            </div>
-            <div style={{ background: "#222", borderRadius: 4, height: 5, overflow: "hidden" }}>
-              <div style={{ width: `${job.progress}%`, background: color, height: "100%", transition: "width 0.4s" }} />
-            </div>
+            <span style={{ color: color, fontSize: "0.75rem", display: "block", marginBottom: 3 }}>
+              {job.progress}%
+            </span>
+            <ProgressBar value={job.progress} color={color} height={5} maxWidth={120} />
           </div>
         )}
         {job.status === "queued" && (
@@ -175,11 +176,3 @@ function JobRow({
   );
 }
 
-function formatDur(sec: number): string {
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  if (h > 0) return `${h}h ${m}m ${s}s`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
-}

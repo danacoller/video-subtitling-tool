@@ -44,12 +44,6 @@ export interface CueCreate {
   text: string;
 }
 
-export interface CuePatch {
-  start_ms?: number;
-  end_ms?: number;
-  text?: string;
-}
-
 export interface JobWithVideo {
   id: string;
   video_id: string;
@@ -120,29 +114,6 @@ export async function getJob(videoId: string): Promise<JobResponse> {
 export async function listCues(videoId: string): Promise<CueResponse[]> {
   const { data } = await api.get<CueResponse[]>(`/videos/${videoId}/subtitles`);
   return data;
-}
-
-export async function addCue(
-  videoId: string,
-  cue: CueCreate
-): Promise<CueResponse> {
-  const { data } = await api.post<CueResponse>(
-    `/videos/${videoId}/subtitles`,
-    cue
-  );
-  return data;
-}
-
-export async function updateCue(
-  id: string,
-  patch: CuePatch
-): Promise<CueResponse> {
-  const { data } = await api.patch<CueResponse>(`/subtitles/${id}`, patch);
-  return data;
-}
-
-export async function deleteCue(id: string): Promise<void> {
-  await api.delete(`/subtitles/${id}`);
 }
 
 export async function bulkReplaceCues(

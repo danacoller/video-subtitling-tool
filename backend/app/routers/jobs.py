@@ -7,38 +7,30 @@ from app.db import get_db
 from app.repositories.job_repo import JobRepository
 from app.repositories.video_repo import VideoRepository
 from app.schemas.job_schemas import JobResponse, JobWithVideoResponse
+from app.services.job_service import JobService
 from app.services.transcription_service import TranscriptionService
 
 router = APIRouter(tags=["jobs"])
 
 
-@router.get("/jobs", response_model=list[JobWithVideoResponse])
-async def list_all_jobs(
+def _get_job_service(session: AsyncSession = Depends(get_db)) -> JobService:
+    return JobService(job_repo=JobRepository(session))
+
+
+def _get_transcription_service(
     session: AsyncSession = Depends(get_db),
-) -> list[JobWithVideoResponse]:
-    rows = await JobRepository(session).list_all_with_video()
-    return [
-        JobWithVideoResponse(
-            id=job.id,
-            video_id=job.video_id,
-            video_name=video_name,
-            video_duration=video_duration,
-            status=job.status,
-            progress=job.progress,
-            error_message=job.error_message,
-            started_at=job.started_at,
-            finished_at=job.finished_at,
-            created_at=job.created_at,
-        )
-        for job, video_name, video_duration in rows
-    ]
-
-
-def _get_service(session: AsyncSession = Depends(get_db)) -> TranscriptionService:
+) -> TranscriptionService:
     return TranscriptionService(
         job_repo=JobRepository(session),
         video_repo=VideoRepository(session),
     )
+
+
+@router.get("/jobs", response_model=list[JobWithVideoResponse])
+async def list_all_jobs(
+    service: JobService = Depends(_get_job_service),
+) -> list[JobWithVideoResponse]:
+    return await service.list_all()
 
 
 @router.post(
@@ -46,7 +38,7 @@ def _get_service(session: AsyncSession = Depends(get_db)) -> TranscriptionServic
 )
 async def transcribe_video(
     video_id: uuid.UUID,
-    service: TranscriptionService = Depends(_get_service),
+    service: TranscriptionService = Depends(_get_transcription_service),
     session: AsyncSession = Depends(get_db),
 ) -> JobResponse:
     job = await service.enqueue(video_id)
@@ -57,13 +49,12 @@ async def transcribe_video(
 @router.get("/videos/{video_id}/job", response_model=JobResponse)
 async def get_job(
     video_id: uuid.UUID,
-    service: TranscriptionService = Depends(_get_service),
+    transcription_service: TranscriptionService = Depends(_get_transcription_service),
+    job_service: JobService = Depends(_get_job_service),
     session: AsyncSession = Depends(get_db),
 ) -> JobResponse:
-    job = await service.get_job(video_id)
+    job = await transcription_service.get_job(video_id)
     response = JobResponse.model_validate(job)
     if job.status == "queued":
-        repo = JobRepository(session)
-        response.queue_position = await repo.queue_position(job.id)
-        response.active_job_progress = await repo.active_job_progress()
+        response = await job_service.enrich_with_queue_info(response, job.id)
     return response

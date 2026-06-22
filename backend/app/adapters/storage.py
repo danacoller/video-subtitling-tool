@@ -1,10 +1,13 @@
 import re
 import uuid
+from collections.abc import Iterator
 from pathlib import Path
 from typing import BinaryIO, Protocol
 
 from app.config import settings
 from app.errors import StorageError
+
+CHUNK_SIZE = 1024 * 1024  # 1 MB
 
 
 class StorageAdapter(Protocol):
@@ -12,10 +15,11 @@ class StorageAdapter(Protocol):
     def open_for_read(self, path: Path) -> BinaryIO: ...
     def delete(self, path: Path) -> None: ...
     def file_size(self, path: Path) -> int: ...
+    def stream_full(self, path: Path) -> Iterator[bytes]: ...
+    def stream_range(self, path: Path, start: int, end: int) -> Iterator[bytes]: ...
 
 
 def _sanitize_filename(filename: str) -> str:
-    """Remove path traversal characters and keep only safe filename characters."""
     name = Path(filename).name
     name = re.sub(r"[^\w.\-]", "_", name)
     return name or "upload"
@@ -36,7 +40,7 @@ class LocalStorageAdapter:
         target = self._video_dir(video_uuid) / safe_name
         try:
             with target.open("wb") as f:
-                while chunk := stream.read(1024 * 1024):  # 1 MB chunks
+                while chunk := stream.read(CHUNK_SIZE):
                     f.write(chunk)
         except OSError as exc:
             raise StorageError(f"Failed to save file: {exc}") from exc
@@ -51,7 +55,6 @@ class LocalStorageAdapter:
     def delete(self, path: Path) -> None:
         try:
             path.unlink(missing_ok=True)
-            # Remove the parent uuid directory if it is now empty
             try:
                 path.parent.rmdir()
             except OSError:
@@ -64,3 +67,19 @@ class LocalStorageAdapter:
             return path.stat().st_size
         except OSError as exc:
             raise StorageError(f"Failed to stat file: {exc}") from exc
+
+    def stream_full(self, path: Path) -> Iterator[bytes]:
+        with self.open_for_read(path) as f:
+            while chunk := f.read(CHUNK_SIZE):
+                yield chunk
+
+    def stream_range(self, path: Path, start: int, end: int) -> Iterator[bytes]:
+        with self.open_for_read(path) as f:
+            f.seek(start)
+            remaining = end - start + 1
+            while remaining > 0:
+                chunk = f.read(min(CHUNK_SIZE, remaining))
+                if not chunk:
+                    break
+                yield chunk
+                remaining -= len(chunk)

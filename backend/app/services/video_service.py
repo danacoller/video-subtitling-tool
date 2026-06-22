@@ -1,35 +1,13 @@
-import json
-import subprocess
 import uuid
 from pathlib import Path
 from typing import BinaryIO
 
+from app.adapters.media_probe import probe_video_duration
 from app.adapters.storage import StorageAdapter
 from app.config import settings
-from app.errors import InvalidCueError, VideoNotFoundError
+from app.errors import VideoNotFoundError, VideoUploadError
 from app.models import Video
 from app.repositories.video_repo import VideoRepositoryProtocol
-
-
-def _probe_duration(path: str) -> float | None:
-    """Return duration in seconds via ffprobe, or None if it cannot be determined."""
-    try:
-        result = subprocess.run(
-            [
-                "ffprobe", "-v", "quiet",
-                "-print_format", "json",
-                "-show_format",
-                path,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        data = json.loads(result.stdout)
-        raw = data.get("format", {}).get("duration")
-        return float(raw) if raw is not None else None
-    except Exception:
-        return None
 
 
 class VideoService:
@@ -41,6 +19,10 @@ class VideoService:
         self._repo = repo
         self._storage = storage
 
+    @property
+    def storage(self) -> StorageAdapter:
+        return self._storage
+
     async def upload(
         self,
         filename: str,
@@ -48,7 +30,7 @@ class VideoService:
         stream: BinaryIO,
     ) -> Video:
         if content_type not in settings.ALLOWED_CONTENT_TYPES:
-            raise InvalidCueError(
+            raise VideoUploadError(
                 f"Content type '{content_type}' is not allowed. "
                 f"Allowed: {sorted(settings.ALLOWED_CONTENT_TYPES)}"
             )
@@ -59,7 +41,7 @@ class VideoService:
 
         if size_bytes > settings.MAX_UPLOAD_BYTES:
             self._storage.delete(storage_path)
-            raise InvalidCueError(
+            raise VideoUploadError(
                 f"File size {size_bytes} exceeds maximum {settings.MAX_UPLOAD_BYTES}"
             )
 
@@ -67,7 +49,7 @@ class VideoService:
             original_name=filename,
             content_type=content_type,
             size_bytes=size_bytes,
-            duration_seconds=_probe_duration(str(storage_path)),
+            duration_seconds=probe_video_duration(str(storage_path)),
             storage_path=str(storage_path),
             status="uploaded",
         )

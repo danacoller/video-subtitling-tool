@@ -11,7 +11,6 @@ class VideoRepositoryProtocol(Protocol):
     async def create(self, video: Video) -> Video: ...
     async def get_by_id(self, video_id: uuid.UUID) -> Video | None: ...
     async def list_all(self) -> list[Video]: ...
-    async def update_status(self, video_id: uuid.UUID, status: str) -> Video | None: ...
     async def delete(self, video_id: uuid.UUID) -> bool: ...
     async def delete_all(self) -> list[Video]: ...
 
@@ -37,14 +36,6 @@ class VideoRepository:
             select(Video).order_by(Video.created_at.desc())
         )
         return list(result.scalars().all())
-
-    async def update_status(self, video_id: uuid.UUID, status: str) -> Video | None:
-        video = await self.get_by_id(video_id)
-        if video is None:
-            return None
-        video.status = status
-        await self._session.flush()
-        return video
 
     async def delete(self, video_id: uuid.UUID) -> bool:
         video = await self.get_by_id(video_id)
