@@ -2,7 +2,7 @@
 
 Upload a video, auto-generate subtitles with Whisper, edit cues in the browser, and export WebVTT.
 
-**Architecture diagrams & flows:** [architecture.md](./architecture.md)
+**Architecture diagrams & flows:** [architecture.md](./architecture.md) — high-level design up front; [design decisions](./architecture.md#design-decisions) at the end.
 
 ---
 
