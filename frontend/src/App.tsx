@@ -7,7 +7,6 @@ import { UploadZone } from "./components/UploadZone";
 import { VideoPlayer, VideoPlayerHandle } from "./components/VideoPlayer";
 import { Header } from "./components/shared/Header";
 import { ProgressBar } from "./components/shared/ProgressBar";
-import { SectionHeading } from "./components/shared/SectionHeading";
 import { StatusBadge } from "./components/shared/StatusBadge";
 import { TranscriptionStats } from "./components/shared/TranscriptionStats";
 import { VideoCard } from "./components/shared/VideoCard";
@@ -75,11 +74,6 @@ export default function App() {
         <main style={{ maxWidth: 860, margin: "0 auto", padding: "0 1.5rem 3rem" }}>
 
           <section style={{ marginBottom: "2.5rem" }}>
-            <SectionHeading
-              icon={<UploadIcon />}
-              title="Upload Video"
-              subtitle="Add a new video to generate subtitles for"
-            />
             <UploadZone onUploaded={handleUploaded} />
           </section>
 
@@ -336,21 +330,3 @@ function EmptyLibrary() {
   );
 }
 
-function UploadIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polyline points="16 16 12 12 8 16" />
-      <line x1="12" y1="12" x2="12" y2="21" />
-      <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
-    </svg>
-  );
-}

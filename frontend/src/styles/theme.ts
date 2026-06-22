@@ -72,3 +72,10 @@ export const ROOT_STYLE: CSSProperties = {
   fontFamily: "'Segoe UI', system-ui, sans-serif",
   boxSizing: "border-box",
 };
+
+/** Matches the editor video preview frame (16:9, capped at half the viewport). */
+export const VIDEO_FRAME: CSSProperties = {
+  width: "100%",
+  maxHeight: "50vh",
+  aspectRatio: "16 / 9",
+};

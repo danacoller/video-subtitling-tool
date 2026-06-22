@@ -1,5 +1,6 @@
 import { forwardRef, useImperativeHandle, useRef } from "react";
 import { streamUrl } from "../api/client";
+import { VIDEO_FRAME } from "../styles/theme";
 
 interface Props {
   videoId: string;
@@ -28,10 +29,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(
         src={streamUrl(videoId)}
         controls
         style={{
-          width: "100%",
+          ...VIDEO_FRAME,
           borderRadius: 8,
           background: "#000",
-          maxHeight: "50vh",
         }}
         onTimeUpdate={() => {
           if (videoRef.current && onTimeUpdate) {

@@ -35,6 +35,11 @@ describe("UploadZone", () => {
     expect(screen.getByText(/drop a video here/i)).toBeInTheDocument();
   });
 
+  it("shows an upload button above the drop zone", () => {
+    render(<UploadZone onUploaded={vi.fn()} />);
+    expect(screen.getByRole("button", { name: /upload video/i })).toBeInTheDocument();
+  });
+
   it("shows the browse-files call-to-action", () => {
     render(<UploadZone onUploaded={vi.fn()} />);
     expect(screen.getByText(/browse files/i)).toBeInTheDocument();
@@ -176,7 +181,8 @@ describe("UploadZone", () => {
     await waitFor(() => expect(screen.getByText(/uploading/i)).toBeInTheDocument());
 
     // The component sets cursor: "default" when uploading to signal non-interactive state
-    const dropzone = container.firstElementChild!.firstElementChild as HTMLElement;
+    // Hidden input, upload button row, then the video-sized dashed drop zone
+    const dropzone = container.firstElementChild!.children[2] as HTMLElement;
     expect(dropzone).toHaveStyle({ cursor: "default" });
   });
 });

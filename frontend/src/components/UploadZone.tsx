@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { VideoResponse, uploadVideo } from "../api/client";
+import { BTN, VIDEO_FRAME } from "../styles/theme";
 
 interface Props {
   onUploaded: (video: VideoResponse) => void;
@@ -21,29 +22,62 @@ export function UploadZone({ onUploaded }: Props) {
         onUploaded(video);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Upload failed");
+      } finally {
         setProgress(null);
       }
     },
     [onUploaded]
   );
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
     accept: { "video/*": [".mp4", ".mov", ".avi", ".mkv", ".webm"] },
     multiple: false,
     disabled: progress !== null,
+    noClick: true,
+    noKeyboard: true,
   });
 
   const uploading = progress !== null;
 
   return (
     <div>
+      <input {...getInputProps()} />
+
+      <div style={{ marginBottom: "0.75rem" }}>
+        <button
+          type="button"
+          onClick={() => open()}
+          disabled={uploading}
+          style={{
+            ...BTN.primary,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.45rem",
+            opacity: uploading ? 0.55 : 1,
+          }}
+        >
+          <UploadButtonIcon />
+          Upload video
+        </button>
+      </div>
+
       <div
         {...getRootProps()}
+        onClick={() => {
+          if (!uploading) open();
+        }}
+        onKeyDown={(e) => {
+          if (!uploading && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault();
+            open();
+          }
+        }}
         style={{
+          ...VIDEO_FRAME,
+          boxSizing: "border-box",
           border: `2px dashed ${isDragActive ? "#6c63ff" : uploading ? "#2a2a3e" : "#2a2a42"}`,
-          borderRadius: 16,
-          padding: "2.75rem 2rem",
+          borderRadius: 8,
           background: isDragActive ? "#0f0f2a" : "#0d0d1c",
           cursor: uploading ? "default" : "pointer",
           textAlign: "center",
@@ -51,16 +85,19 @@ export function UploadZone({ onUploaded }: Props) {
           outline: "none",
           boxShadow: isDragActive ? "0 0 0 4px #6c63ff22" : "none",
           position: "relative",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "1.5rem",
         }}
       >
-        <input {...getInputProps()} />
-
         {uploading ? (
           <UploadingState progress={progress} />
         ) : isDragActive ? (
           <DragActiveState />
         ) : (
-          <IdleState />
+          <IdleState onBrowse={open} />
         )}
       </div>
 
@@ -87,7 +124,7 @@ export function UploadZone({ onUploaded }: Props) {
   );
 }
 
-function IdleState() {
+function IdleState({ onBrowse }: { onBrowse: () => void }) {
   return (
     <>
       <UploadIcon />
@@ -100,9 +137,26 @@ function IdleState() {
         }}
       >
         Drop a video here, or{" "}
-        <span style={{ color: "#6c63ff", textDecoration: "underline", textUnderlineOffset: 3 }}>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onBrowse();
+          }}
+          style={{
+            background: "none",
+            border: "none",
+            padding: 0,
+            color: "#6c63ff",
+            textDecoration: "underline",
+            textUnderlineOffset: 3,
+            cursor: "pointer",
+            font: "inherit",
+            fontWeight: 600,
+          }}
+        >
           browse files
-        </span>
+        </button>
       </p>
       <p style={{ margin: 0, color: "#444", fontSize: "0.8rem", letterSpacing: "0.02em" }}>
         MP4 · MOV · AVI · MKV · WebM
@@ -161,6 +215,26 @@ function UploadingState({ progress }: { progress: number }) {
         />
       </div>
     </>
+  );
+}
+
+function UploadButtonIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <polyline points="16 16 12 12 8 16" />
+      <line x1="12" y1="12" x2="12" y2="21" />
+      <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
+    </svg>
   );
 }
 
