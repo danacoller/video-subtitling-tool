@@ -61,6 +61,22 @@ services:
     depends_on:
       - api
 
+  # One-off test runners (no profile — invoke with `docker compose run --rm …`)
+  backend-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: pytest -q
+    profiles: [test]
+
+  frontend-test:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: builder
+    command: npm test
+    profiles: [test]
+
 volumes:
   postgres_data:
   video_uploads:

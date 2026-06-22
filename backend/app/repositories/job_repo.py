@@ -16,6 +16,7 @@ class JobRepositoryProtocol(Protocol):
     async def update_progress(self, job_id: uuid.UUID, progress: int) -> bool: ...
     async def mark_completed(self, job_id: uuid.UUID) -> None: ...
     async def mark_failed(self, job_id: uuid.UUID, error: str) -> None: ...
+    async def requeue_for_retry(self, job_id: uuid.UUID) -> None: ...
     async def queue_position(self, job_id: uuid.UUID) -> int | None: ...
     async def active_job_progress(self) -> int | None: ...
     async def list_all_with_video(self) -> list: ...
@@ -103,6 +104,20 @@ class JobRepository:
                 status="failed",
                 error_message=error,
                 finished_at=datetime.now(tz=timezone.utc),
+            )
+        )
+        await self._session.flush()
+
+    async def requeue_for_retry(self, job_id: uuid.UUID) -> None:
+        """Increment retry_count and reset job to queued for another attempt."""
+        await self._session.execute(
+            update(TranscriptionJob)
+            .where(TranscriptionJob.id == job_id)
+            .values(
+                status="queued",
+                retry_count=TranscriptionJob.retry_count + 1,
+                progress=0,
+                started_at=None,
             )
         )
         await self._session.flush()

@@ -64,6 +64,7 @@ class TranscriptionJob(Base):
         String(32), nullable=False, default="queued"
     )  # queued|processing|completed|failed
     progress: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

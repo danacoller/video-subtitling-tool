@@ -41,6 +41,8 @@ class FakeJobRepository:
     async def create(self, job: TranscriptionJob) -> TranscriptionJob:
         if job.id is None:
             job.id = uuid.uuid4()
+        if getattr(job, "retry_count", None) is None:
+            job.retry_count = 0
         now = datetime.now(tz=timezone.utc)
         job.created_at = now
         job.updated_at = now
@@ -103,6 +105,14 @@ class FakeJobRepository:
 
     async def list_all_with_video(self) -> list:
         return []
+
+    async def requeue_for_retry(self, job_id: uuid.UUID) -> None:
+        job = self._store.get(job_id)
+        if job:
+            job.status = "queued"
+            job.retry_count = (getattr(job, "retry_count", 0) or 0) + 1
+            job.progress = 0
+            job.started_at = None
 
     async def reset_orphaned(self) -> None:
         for job in self._store.values():

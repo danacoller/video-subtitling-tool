@@ -46,3 +46,9 @@ class InvalidCueError(AppError):
 class VideoUploadError(AppError):
     status_code = 422
     code = "invalid_upload"
+
+
+class CorruptedVideoError(AppError):
+    """Raised when a video file cannot be decoded — deterministic failure, no retry."""
+    status_code = 422
+    code = "corrupted_video"

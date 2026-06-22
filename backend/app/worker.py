@@ -13,6 +13,7 @@ from app.adapters.media_probe import probe_video_duration
 from app.adapters.transcription import FasterWhisperTranscriber, Transcriber
 from app.config import settings
 from app.db import AsyncSessionLocal
+from app.errors import CorruptedVideoError
 from app.models import Subtitle, TranscriptionJob
 from app.repositories.job_repo import JobRepository
 from app.repositories.subtitle_repo import SubtitleRepository
@@ -34,18 +35,35 @@ def _handle_sigterm(signum: int, frame: types.FrameType | None) -> None:
     _shutdown = True
 
 
+def _should_retry(exc: Exception, retry_count: int) -> bool:
+    """Return True if the job should be requeued for another attempt.
+
+    Corrupted-file errors are deterministic — retrying will always fail, so we
+    mark them failed immediately.  Everything else (OOM, model crash, network
+    hiccup) may succeed on a subsequent attempt up to MAX_JOB_RETRIES.
+    """
+    if isinstance(exc, CorruptedVideoError):
+        return False
+    return retry_count < settings.MAX_JOB_RETRIES
+
+
 async def _extract_audio(video_path: Path, audio_path: Path) -> None:
-    (
-        ffmpeg.input(str(video_path))
-        .output(
-            str(audio_path),
-            acodec="pcm_s16le",
-            ac=_AUDIO_CHANNELS,
-            ar=_AUDIO_SAMPLE_RATE,
+    try:
+        (
+            ffmpeg.input(str(video_path))
+            .output(
+                str(audio_path),
+                acodec="pcm_s16le",
+                ac=_AUDIO_CHANNELS,
+                ar=_AUDIO_SAMPLE_RATE,
+            )
+            .overwrite_output()
+            .run(quiet=True)
         )
-        .overwrite_output()
-        .run(quiet=True)
-    )
+    except ffmpeg.Error as exc:
+        raise CorruptedVideoError(
+            f"Cannot decode '{video_path.name}': ffmpeg could not read the file"
+        ) from exc
 
 
 async def _process_job(
@@ -91,9 +109,28 @@ async def _process_job(
             await session.commit()
             logger.info("Job %s completed with %d segments", job.id, len(subtitles))
 
-        except Exception as exc:
-            logger.exception("Job %s failed: %s", job.id, exc)
+        except CorruptedVideoError as exc:
+            logger.warning("Job %s failed — corrupted file, no retry: %s", job.id, exc)
             await job_repo.mark_failed(job.id, str(exc))
+            await session.commit()
+
+        except Exception as exc:
+            retry_count = getattr(job, "retry_count", 0) or 0
+            if _should_retry(exc, retry_count):
+                logger.warning(
+                    "Job %s failed (attempt %d/%d), requeueing: %s",
+                    job.id, retry_count + 1, settings.MAX_JOB_RETRIES, exc,
+                )
+                await job_repo.requeue_for_retry(job.id)
+            else:
+                logger.exception(
+                    "Job %s failed permanently after %d attempt(s): %s",
+                    job.id, retry_count + 1, exc,
+                )
+                await job_repo.mark_failed(
+                    job.id,
+                    f"Failed after {retry_count + 1} attempt(s): {exc}",
+                )
             await session.commit()
 
 
@@ -104,8 +141,16 @@ async def _transcribe_segments(
     duration_sec: float,
     job_repo: JobRepository,
 ) -> tuple[list[Subtitle], bool]:
+    # Write immediately so the bar moves off 0% before the first segment arrives.
+    # faster-whisper blocks for several seconds doing VAD + model warm-up before
+    # yielding anything — without this the UI shows 0% for the entire warm-up period.
+    async with AsyncSessionLocal() as s:
+        await JobRepository(s).update_progress(job.id, 1)
+        await s.commit()
+
     subtitles: list[Subtitle] = []
     last_write_time = time.monotonic()
+    transcription_start = time.monotonic()
 
     for i, seg in enumerate(transcriber.transcribe(audio_path), start=1):
         subtitles.append(
@@ -121,11 +166,16 @@ async def _transcribe_segments(
             )
         )
 
-        pct = (
-            min(_PROGRESS_CAP, int(seg.end_sec / duration_sec * 100))
-            if duration_sec > 0
-            else 0
+        segment_pct = (
+            int(seg.end_sec / duration_sec * 100) if duration_sec > 0 else 0
         )
+        # Time-elapsed floor: if the model is buffering between segments,
+        # advance progress based on wall time (assuming at-most 1× real-time speed).
+        elapsed_sec = time.monotonic() - transcription_start
+        time_floor_pct = (
+            int(elapsed_sec / duration_sec * 100) if duration_sec > 0 else 0
+        )
+        pct = min(_PROGRESS_CAP, max(segment_pct, time_floor_pct))
 
         now = time.monotonic()
         if now - last_write_time >= _PROGRESS_WRITE_INTERVAL_SEC:

@@ -17,7 +17,6 @@ dependencies = [
     "python-multipart>=0.0.9",
     "faster-whisper>=1.0.1",
     "ffmpeg-python>=0.2.0",
-    "aiofiles>=23.2.1",
 ]
 
 [project.optional-dependencies]

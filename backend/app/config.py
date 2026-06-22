@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     )
     WHISPER_MODEL: str = "small"
     WORKER_POLL_INTERVAL: int = 3
+    MAX_JOB_RETRIES: int = 3
 
     @computed_field  # type: ignore[misc]
     @property
